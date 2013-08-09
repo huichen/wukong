@@ -15,7 +15,8 @@ type MyScoringFields struct {
 // MyScoringCriteria实现了types.ScoringCriteria接口，也就是下面的Score函数
 type MyScoringCriteria struct {
 }
-func (criteria MyScoringCriteria) Score(docId uint64, tokenProximity int32, fields interface{}) float32 {
+func (criteria MyScoringCriteria) Score(
+	doc types.IndexedDocument, fields interface{}) []float32 {
 	// 首先检查评分字段是否为MyScoringFields类型的，如果不是则返回-1，此文档将从结果中剔除
 	if reflect.TypeOf(fields) != reflect.TypeOf(MySearchFields{}) {
 		return -1
