@@ -187,7 +187,7 @@ http://soooweibo.com
     /core       核心部件，包括索引器和排序器
     /data       字典文件和停用词文件
     /docs       文档
-    /engine     引擎，包括主协程、分词协程、所引器协程和排序器协程的实现
+    /engine     引擎，包括主协程、分词协程、索引器协程和排序器协程的实现
     /examples   例子和性能测试程序
     /testdata   测试数据
     /types      常用结构体
