@@ -22,8 +22,7 @@ var (
 	weibo_data = flag.String(
 		"weibo_data",
 		"../testdata/weibo_data.txt",
-		"微博数据，每行的格式是\"<id>||||<timestamp>||||<uid>||||"+
-			"<reposts count>||||<text>\"，否则每行只是文本")
+		"微博数据")
 	queries = flag.String(
 		"queries",
 		"女人母亲,你好中国,网络草根,热门微博,红十字会,"+
