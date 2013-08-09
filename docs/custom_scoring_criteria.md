@@ -17,9 +17,9 @@ type MyScoringCriteria struct {
 }
 func (criteria MyScoringCriteria) Score(
 	doc types.IndexedDocument, fields interface{}) []float32 {
-	// 首先检查评分字段是否为MyScoringFields类型的，如果不是则返回-1，此文档将从结果中剔除
+	// 首先检查评分字段是否为MyScoringFields类型的，如果不是则返回空切片，此文档将从结果中剔除
 	if reflect.TypeOf(fields) != reflect.TypeOf(MySearchFields{}) {
-		return -1
+		return []float32{}
 	}
 	
 	// 匹配则进行类型转换
