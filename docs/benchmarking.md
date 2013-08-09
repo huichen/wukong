@@ -28,7 +28,7 @@ go tool pprof benchmark cpu.prof
 
 进入pprof终端后输入web命令可以生成类似下面的图，清晰地表示了每个组件消耗的CPU时间
 
-![](/docs/cpu.png)
+![](https://raw.github.com/huichen/wukong/master/docs/cpu.png)
 
 分析内存占用：
 ```
