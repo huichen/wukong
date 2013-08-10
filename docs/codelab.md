@@ -157,7 +157,7 @@ WeiboScoringCriteria实际上继承了types.ScoringCriteria接口，这个接口
 有了自定义评分数据和自定义评分规则，我们就可以进行搜索了，见下面的代码
 
 ```go
-output := searcher.Search(types.SearchQuery{
+response := searcher.Search(types.SearchRequest{
 	Text: "自行车运动",
 	RankOptions: &types.RankOptions{
 		ScoringCriteria: &WeiboScoringCriteria{},
@@ -167,7 +167,7 @@ output := searcher.Search(types.SearchQuery{
 })
 ```
 
-其中，Text是输入的搜索短语，RankOptions定义了排序选项。WeiboScoringCriteria就是我们在上面定义的评分规则。另外你也可以通过OutputOffset和MaxOutputs参数控制分页输出。搜索结果保存在output变量中，具体内容见[types/search_response.go](/types/search_response.go)文件中定义的SearchResponse结构体，比如这个结构体返回了关键词出现在文档中的位置，可以用来生成文档的摘要。
+其中，Text是输入的搜索短语，RankOptions定义了排序选项。WeiboScoringCriteria就是我们在上面定义的评分规则。另外你也可以通过OutputOffset和MaxOutputs参数控制分页输出。搜索结果保存在response变量中，具体内容见[types/search_response.go](/types/search_response.go)文件中定义的SearchResponse结构体，比如这个结构体返回了关键词出现在文档中的位置，可以用来生成文档的摘要。
 
 ## 显示
 
