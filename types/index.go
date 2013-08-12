@@ -13,7 +13,7 @@ type DocumentIndex struct {
 
 // 反向索引项，这实际上标注了一个（搜索键，文档）对。
 type KeywordIndex struct {
-	// 搜索键的文本
+	// 搜索键的UTF-8文本
 	Text string
 
 	// 搜索键词频
