@@ -25,6 +25,8 @@ go get -u github.com/huichen/murmur
 go get -u github.com/huichen/wukong
 ```
 
+需要Go版本至少1.1.1
+
 # 使用
 
 先看一个例子（来自[examples/simplest_example.go](/examples/simplest_example.go)）
