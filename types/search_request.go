@@ -1,15 +1,15 @@
 package types
 
 type SearchRequest struct {
-	// 搜索的短语，会被分词
+	// 搜索的短语（必须是UTF-8格式），会被分词
 	// 当值为空字符串时关键词会从下面的Tokens读入
 	Text string
 
-	// 关键词，当Text不为空时优先使用Text
+	// 关键词（必须是UTF-8格式），当Text不为空时优先使用Text
 	// 通常你不需要自己指定关键词，除非你运行自己的分词程序
 	Tokens []string
 
-	// 文档标签，标签不存在文档文本中，但也属于搜索键的一种
+	// 文档标签（必须是UTF-8格式），标签不存在文档文本中，但也属于搜索键的一种
 	Labels []string
 
 	// 当不为空时，仅从这些文档中搜索
