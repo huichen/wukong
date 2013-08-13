@@ -65,8 +65,8 @@ func (ranker *Ranker) Rank(
 			outputDocs = append(outputDocs, types.ScoredDocument{
 				DocId:                 d.DocId,
 				Scores:                scores,
-				TokenSnippetPositions: d.TokenSnippetLocations,
-				TokenPositions:        d.TokenLocations})
+				TokenSnippetLocations: d.TokenSnippetLocations,
+				TokenLocations:        d.TokenLocations})
 		}
 	}
 
