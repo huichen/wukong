@@ -268,7 +268,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"中国", []int{0}},
 			{"人口", []int{18, 24}},
 		},
-		Fields:  ScoringFields{1, 2, 3},
+		Fields: ScoringFields{1, 2, 3},
 	})
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
@@ -277,7 +277,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"中国", []int{0}},
 			{"人口", []int{6}},
 		},
-		Fields:  ScoringFields{1, 2, 3},
+		Fields: ScoringFields{1, 2, 3},
 	})
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
@@ -297,7 +297,11 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 	utils.Expect(t, "1000", int(outputs.Docs[0].Scores[0]*1000))
 	utils.Expect(t, "[0 6]", outputs.Docs[0].TokenSnippetLocations)
 
-	utils.Expect(t, "4", outputs.Docs[1].DocId)
+	utils.Expect(t, "2", outputs.Docs[1].DocId)
 	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
 	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
+
+	utils.Expect(t, "0", outputs.Docs[2].DocId)
+	utils.Expect(t, "76", int(outputs.Docs[2].Scores[0]*1000))
+	utils.Expect(t, "[0 18]", outputs.Docs[2].TokenSnippetLocations)
 }
