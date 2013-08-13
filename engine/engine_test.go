@@ -76,15 +76,15 @@ func TestEngineIndexDocument(t *testing.T) {
 
 	utils.Expect(t, "1", outputs.Docs[0].DocId)
 	utils.Expect(t, "1000", int(outputs.Docs[0].Scores[0]*1000))
-	utils.Expect(t, "[0 6]", outputs.Docs[0].TokenSnippetPositions)
+	utils.Expect(t, "[0 6]", outputs.Docs[0].TokenSnippetLocations)
 
 	utils.Expect(t, "4", outputs.Docs[1].DocId)
 	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
-	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetPositions)
+	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
 
 	utils.Expect(t, "0", outputs.Docs[2].DocId)
 	utils.Expect(t, "76", int(outputs.Docs[2].Scores[0]*1000))
-	utils.Expect(t, "[0 18]", outputs.Docs[2].TokenSnippetPositions)
+	utils.Expect(t, "[0 18]", outputs.Docs[2].TokenSnippetLocations)
 }
 
 func TestReverseOrder(t *testing.T) {
@@ -245,4 +245,59 @@ func TestRemoveDocument(t *testing.T) {
 
 	utils.Expect(t, "0", outputs.Docs[0].DocId)
 	utils.Expect(t, "6000", int(outputs.Docs[0].Scores[0]*1000))
+}
+
+func TestEngineIndexDocumentWithTokens(t *testing.T) {
+	var engine Engine
+	engine.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			OutputOffset:    0,
+			MaxOutputs:      10,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+	})
+
+	docId := uint64(0)
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "",
+		Tokens: []types.TokenData{
+			{"中国", []int{0}},
+			{"人口", []int{18, 24}},
+		},
+		Fields:  ScoringFields{1, 2, 3},
+	})
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "",
+		Tokens: []types.TokenData{
+			{"中国", []int{0}},
+			{"人口", []int{6}},
+		},
+		Fields:  ScoringFields{1, 2, 3},
+	})
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "中国十三亿人口",
+		Fields:  ScoringFields{0, 9, 1},
+	})
+
+	engine.FlushIndex()
+
+	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
+	utils.Expect(t, "2", len(outputs.Tokens))
+	utils.Expect(t, "中国", outputs.Tokens[0])
+	utils.Expect(t, "人口", outputs.Tokens[1])
+	utils.Expect(t, "3", len(outputs.Docs))
+
+	utils.Expect(t, "1", outputs.Docs[0].DocId)
+	utils.Expect(t, "1000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "[0 6]", outputs.Docs[0].TokenSnippetLocations)
+
+	utils.Expect(t, "4", outputs.Docs[1].DocId)
+	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
 }

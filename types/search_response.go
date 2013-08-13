@@ -24,11 +24,11 @@ type ScoredDocument struct {
 
 	// 用于生成摘要的关键词在文本中的字节位置，该切片长度和SearchResponse.Tokens的长度一样
 	// 只有当IndexType == LocationsIndex时不为空
-	TokenSnippetPositions []int
+	TokenSnippetLocations []int
 
 	// 关键词出现的位置
 	// 只有当IndexType == LocationsIndex时不为空
-	TokenPositions [][]int
+	TokenLocations [][]int
 }
 
 // 为了方便排序

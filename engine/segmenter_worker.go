@@ -14,15 +14,27 @@ func (engine *Engine) segmenterWorker() {
 	for {
 		request := <-engine.segmenterChannel
 		shard := engine.getShard(request.hash)
-		segments := engine.segmenter.Segment([]byte(request.data.Content))
-		tokensMap := make(map[string][]int)
 
-		// 加入分词得到的关键词
-		for _, segment := range segments {
-			token := segment.Token().Text()
-			if !engine.stopTokens.IsStopToken(token) {
-				tokensMap[token] = append(tokensMap[token], segment.Start())
+		tokensMap := make(map[string][]int)
+		numTokens := 0
+		if request.data.Content != "" {
+			// 当文档正文不为空时，优先从内容分词中得到关键词
+			segments := engine.segmenter.Segment([]byte(request.data.Content))
+			for _, segment := range segments {
+				token := segment.Token().Text()
+				if !engine.stopTokens.IsStopToken(token) {
+					tokensMap[token] = append(tokensMap[token], segment.Start())
+				}
 			}
+			numTokens = len(segments)
+		} else {
+			// 否则载入用户输入的关键词
+			for _, t := range request.data.Tokens {
+				if !engine.stopTokens.IsStopToken(t.Text) {
+					tokensMap[t.Text] = t.Locations
+				}
+			}
+			numTokens = len(request.data.Tokens)
 		}
 
 		// 加入非分词的文档标签
@@ -35,7 +47,7 @@ func (engine *Engine) segmenterWorker() {
 		indexerRequest := indexerAddDocumentRequest{
 			document: &types.DocumentIndex{
 				DocId:       request.docId,
-				TokenLength: float32(len(segments)),
+				TokenLength: float32(numTokens),
 				Keywords:    make([]types.KeywordIndex, len(tokensMap)),
 			},
 		}
