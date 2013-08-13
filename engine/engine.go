@@ -19,6 +19,11 @@ const (
 )
 
 type Engine struct {
+	// 计数器，用来统计有多少文档被索引等信息
+	numDocumentsIndexed uint64
+	numIndexingRequests uint64
+	numTokenIndexAdded  uint64
+
 	// 记录初始化参数
 	initOptions types.EngineInitOptions
 	initialized bool
@@ -37,11 +42,6 @@ type Engine struct {
 	indexerLookupChannels             []chan indexerLookupRequest
 	rankerRankChannels                []chan rankerRankRequest
 	rankerRemoveScoringFieldsChannels []chan rankerRemoveScoringFieldsRequest
-
-	// 计数器，用来统计有多少文档被索引等信息
-	numDocumentsIndexed uint64
-	numIndexingRequests uint64
-	numTokenIndexAdded  uint64
 }
 
 func (engine *Engine) Init(options types.EngineInitOptions) {
