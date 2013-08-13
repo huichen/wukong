@@ -97,8 +97,9 @@ searcher.IndexDocument(docId, types.DocumentIndexData{
 文档的docId必须唯一，对微博来说可以直接用微博的ID。悟空引擎允许你加入三种索引数据：
 
 1. 文档的正文（content），会被分词为关键词（tokens）加入索引。
-2. 文档的属性标签（labels），比如微博的作者，类别等。标签并不出现在正文中。
-3. 自定义评分字段（scoring fields），这允许你给文档添加 **任意类型** 、 **任意结构** 的数据用于排序。“搜索”一节会进一步介绍自定义评分字段的用法。
+2. 文档的关键词（tokens）。当正文为空的时候，允许用户绕过悟空内置的分词器直接输入文档关键词，这使得在引擎外部进行文档分词成为可能。
+3. 文档的属性标签（labels），比如微博的作者，类别等。标签并不出现在正文中。
+4. 自定义评分字段（scoring fields），这允许你给文档添加 **任意类型** 、 **任意结构** 的数据用于排序。“搜索”一节会进一步介绍自定义评分字段的用法。
 
 **特别注意的是** ，关键词（tokens）和标签（labels）组成了索引器中的搜索键（keywords），文档和代码中会反复出现这三个概念，请不要混淆。对正文的搜索就是在搜索键上的逻辑查询，比如一个文档正文中出现了“自行车”这个关键词，也有“健身”这样的分类标签，但“健身”这个词并不直接出现在正文中，当查询“自行车”+“健身”这样的搜索键组合时，这篇文章就会被查询到。设计标签的目的是为了方便从非字面意义的维度快速缩小查询范围。
 
@@ -167,7 +168,7 @@ response := searcher.Search(types.SearchRequest{
 })
 ```
 
-其中，Text是输入的搜索短语（必须是UTF-8格式），RankOptions定义了排序选项。WeiboScoringCriteria就是我们在上面定义的评分规则。另外你也可以通过OutputOffset和MaxOutputs参数控制分页输出。搜索结果保存在response变量中，具体内容见[types/search_response.go](/types/search_response.go)文件中定义的SearchResponse结构体，比如这个结构体返回了关键词出现在文档中的位置，可以用来生成文档的摘要。
+其中，Text是输入的搜索短语（必须是UTF-8格式），会被分词为关键词。和索引时相同，悟空引擎允许绕过内置的分词器直接输入关键词和文档标签，见types.SearchRequest结构体的注释。RankOptions定义了排序选项。WeiboScoringCriteria就是我们在上面定义的评分规则。另外你也可以通过OutputOffset和MaxOutputs参数控制分页输出。搜索结果保存在response变量中，具体内容见[types/search_response.go](/types/search_response.go)文件中定义的SearchResponse结构体，比如这个结构体返回了关键词出现在文档中的位置，可以用来生成文档的摘要。
 
 ## 显示
 
