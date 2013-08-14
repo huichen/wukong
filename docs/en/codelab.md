@@ -32,13 +32,13 @@ Above gives you basic idea on how Wukong works. A search system often consists o
 
 ## Doc crawling
 
-Document capture technology a lot more to be able to separate out to write an article. Fortunately microblogging grab relatively simple API provided by Sina implemented and already have [Go language SDK] (http://github.com/huichen/gobo) can concurrently fetch and quite fast.
+The technology of doc crawling deserve a full article. Fortunately for Weibo fetching, Sina provides simple APIs to get Weibo data and there's an easy-to-use [Go language SDK](http://github.com/huichen/gobo) which allows fetching with high concurrency.
 
-I've caught about one hundred thousand micro-blog on the testdata / weibo_data.txt years, so you do not need to do. Each line of the file stored in a micro-Bo, the following format
+I've downloaded about one hundred thousand weibo posts and stored them in testdata/weibo_data.txt, so you do not need to do it yourself. One line of the file has following format:
 
     <Weibo id>||||<timestamp>||||<User id>||||<user name>||||<share counts>||||<comment counts>||||<fav counts>||||<thumbnail URL>||||<large image URL>||||<body>
 
-Microblogging saved in the following struct easy access, just loaded the data we need:
+The Weibos are saved in following struct. Only saved data useful for this codelab.
 
 ```Go
 type Weibo struct {
@@ -50,11 +50,11 @@ type Weibo struct {
 }
 ```
 
-If you are interested in the details, see crawling crawling process [testdata / crawl_weibo_data.go] (/ testdata / crawl_weibo_data.go).
+However, if you are interested how the data is crawled, see this script [testdata/crawl_weibo_data.go](/testdata/crawl_weibo_data.go).
 
 ## Indexing
 
-Use Wukong engine you need import two packages
+To use Wukong engine you need to import two packages
 
 ```Go
 import (
@@ -62,7 +62,7 @@ import (
     "Github.com/huichen/wukong/types"
 )
 ```
-The first package defines the engine function, and the second package defines the common structure. Before using the engine needs to be initialized, for example,
+The first one implements the engine, and the second package defines common structs. The engine has to be initialized before use, for example,
 
 ```Go
 var search engine.Engine
@@ -75,7 +75,7 @@ searcher.Init(types.EngineInitOptions{
 })
 ```
 
-[Types.EngineInitOptions] (/types/engine_init_options.go) defines the initialization engines need to set parameters, such as where the loaded word from the dictionary file, stop word lists, indexes, type, BM25 parameters, and the default rating rules (see "Search" a) and output pagination options. Please read the details of the code structure of the Notes.
+[Types.EngineInitOptions](/types/engine_init_options.go) defines the initialization engines need to set parameters, such as where the loaded word from the dictionary file, stop word lists, indexes, type, BM25 parameters, and the default rating rules (see "Search" a) and output pagination options. Please read the details of the code structure of the Notes.
 
 What must be emphasized is that please choose carefully IndexerInitOptions.IndexType type, there are three different types of index table:
 
