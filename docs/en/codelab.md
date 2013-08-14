@@ -5,22 +5,22 @@ At the end of this codelab, you will be able to write a simple full-text search 
 
 If you do not know Go yet, [here](http://tour.golang.org/#1) is a tutorial.
 
-# # The principle of the engine
+# # Engine basics
 
-Engine handles user requests, segmentation, indexing and sorting by different coroutines (goroutines) is completed.
+Engine handles user requests, segmentation, indexing and sorting in their own goroutines.
 
-1.The main coroutine, for sending and receiving user requests
-2 tokenizer (segmenter) coroutine responsible participle
-3 indexer (indexer) coroutine, is responsible for establishing and lookup index table
-4 sequencer (ranker) coroutine, is responsible for the document rating Sort
-    
-! [] (Https://raw.github.com/huichen/wukong/master/docs/wukong.png)
+1. main goroutines, are responsible for sending and receiving user requests
+2. segmenter goroutines
+3. indexer goroutines, for building inverted index and lookup
+4. ranker goroutines, for scoring and ranking documents
 
-Indexing process ** **
+![](https://raw.github.com/huichen/wukong/master/docs/wukong.png)
 
-When a document (document) added to the index's request comes after the main coroutine through one channel (channel) will be sub-word text sent to a word coroutine, the coroutine text word after through another channel sent to a indexer coroutine. Indexer Association Cheng Jianli from the search key (search keyword) to the document inverted index (inverted index), the inverted index table is stored in memory for quick calls.
+**Indexing pipeline**
 
-Search Process ** **
+When a document is added, the main goroutine sends the doc through a channel to a segmenter goroutine, which segments the text and passes it to a indexer. Indexer build doc index from search keyword. Inverted index table is stored in memory for quick lookups.
+
+**Search pipeline**
 
 Coroutine main user requests received, the request is within the phrase in the main coroutine word, and then sent through the channel to the indexer, indexers find each search key corresponding to the document and logical operations (merge for intersection) to get a streamlined document list, this list through the channel passed to sort, Sequencers the document rating (scoring), filtering and sorting, and then sorted documents by specifying the channel sent to the main coroutine main coroutine returns the results to the user .
 
