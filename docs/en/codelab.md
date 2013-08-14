@@ -5,7 +5,7 @@ At the end of this codelab, you will be able to write a simple full-text search 
 
 If you do not know Go yet, [here](http://tour.golang.org/#1) is a tutorial.
 
-# # Engine basics
+## Engine basics
 
 Engine handles user requests, segmentation, indexing and sorting in their own goroutines.
 
