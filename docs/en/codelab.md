@@ -114,76 +114,76 @@ searcher.FlushIndex ()
 
 ## Search
 
-Search process in two steps, the first step is to look in the index table containing the search key documents, which has been introduced in the last one before. The second step is an index of all documents to be sorted.
+Search is done in two steps. The first step is to look up documents in inverted index table which contains the keywords. This part has been explained in details before. The second step is to score and to rank the documents returned from indexer.
 
-Sort the core of the document score. Wukong engine allows you to customize any of the scoring rules (scoring criteria). Search the microblogging example, we define scoring rules are as follows:
+Wukong engine allows you to use any scoring criteria you want in ranking. Taking the Weibo search as an example, we define scoring rules as follow,
 
-1. first sort by keywords close distance, for example search for "cycling", the phrase will be cut into two words, "bicycle" and "movement", there are two words next to the article should be at two key separate article in front of the word.
-2. and then follow the microblogging Published roughly sort, and every three days as a team, later articles echelon top surface.
-3. score was finally given microblogging BM25 * (1 + forwarding number / 10000)
+1. first sort by token proximity, for example for search query "bicycle sports", the phrase will be cut into two tokens, "bicycle" and "sports". A document with the two tokens next to each other in the same order will appear above other docs.
+2. and rank by Weibo's creation timestamp roughly (3 days per bucket).
+3. finally sort by Weibo's BM25 * (1 + <shard count> / 10000)
 
-Such rules need to save some of the score for each document data, such as microblogging Published, microblogging forwarding number and so on. The data is stored in the following structure body
+To use such rule, we need to store scoring fields in ranker. Following structure is defined
 ```Go
 type WeiboScoringFields struct {
     Timestamp uint64
     RepostsCount uint64
 }
 ```
-You may have noticed, this is the last one when the document is added to the index passed to the function call IndexDocument parameter type (in fact, that argument is the interface {} type, so you can pass any type of structure). The data stored in the memory sequencer waits for the call.
+You may have noticed, this is exactly the same type of argument passed to the indexer when calling IndexDocument function (in fact, the function argument has the type of interface{}, so you can pass in anything you want).
 
-With these data, we can score, the code is as follows:
+Now you can define the scoring criteria in code,
 ```Go
 type WeiboScoringCriteria struct {
 }
 
 func (criteria WeiboScoringCriteria) Score (
-        doc types.IndexedDocument, fields interface {}) [] float32 {
-        if reflect.TypeOf (fields)! = reflect.TypeOf (WeiboScoringFields {}) {
-                return [] float32 {}
-        }
-        wsf: = fields. (WeiboScoringFields)
-        output: = make ([] float32, 3)
-        if doc.TokenProximity> MaxTokenProximity {/ / Step
-                output [0] = 1.0 / float32 (doc.TokenProximity)
-        } Else {
-                output [0] = 1.0
-        }
-        output [1] = float32 (wsf.Timestamp / (SecondsInADay * 3)) / / Step
-        output [2] = float32 (doc.BM25 * (1 + float32 (wsf.RepostsCount) / 10000)) / / The third step
-        return output
+    doc types.IndexedDocument, fields interface {}) []float32 {
+    if reflect.TypeOf(fields)! = reflect.TypeOf(WeiboScoringFields{}) {
+        return []float32{}
+    }
+    wsf: = fields.(WeiboScoringFields)
+    output: = make([]float32, 3)
+    if doc.TokenProximity > MaxTokenProximity { // step 1
+        output[0] = 1.0 / float32(doc.TokenProximity)
+    } else {
+        output[0] = 1.0
+    }
+    output[1] = float32(wsf.Timestamp / (SecondsInADay * 3)) // step 2
+    output[2] = float32(doc.BM25 * (1 + float32(wsf.RepostsCount) / 10000)) // step 3
+    return output
 }
 ```
-WeiboScoringCriteria actually inherited types.ScoringCriteria interface that implements Score function. This function takes two parameters:
+WeiboScoringCriteria inherits types.ScoringCriteria interface and implements the Score function. This function takes two arguments:
 
-1. Types.IndexedDocument indexer parameters passed from the data obtained, for example, word frequency, word specific location, BM25 value, close to the degrees and other information, see specific [types / index.go] (/ types / index.go) of comments.
-(2) The second parameter is the type of interface {}, you can put this type of understanding into the C language void pointer, it can point to any data type. In our example, the point is WeiboScoringFields structure, and through reflection mechanism checks the correct type.
+1. A types.IndexedDocument slice with information on indexed docs, for example, token frequencies, token locations, BM25 score, token proximity, etc.
+2. The second argument has the type of interface{}. You can think this type as the void pointer in C language, which allows it to point to any data type. In our example, the data is a WeiboScoringFields struct, whose type was checked in the Score function using reflection mechanism.
 
-With custom scoring data and custom scoring rules, we will be able to search, and see the code below
+With custom scoring criteria, search is made easy and customizable. Code example for doing searching,
 
 ```Go
-response: = searcher.Search (types.SearchRequest {
-Text: "cycling"
-RankOptions: & types.RankOptions {
-ScoringCriteria: & WeiboScoringCriteria {},
-OutputOffset: 0,
-MaxOutputs: 100,
-},
+response: = searcher.Search(types.SearchRequest {
+    Text: "cycling sports",
+    RankOptions: &types.RankOptions{
+        ScoringCriteria: & WeiboScoringCriteria {},
+        OutputOffset: 0,
+        MaxOutputs: 100,
+    },
 })
 ```
 
-Which, Text is entered search phrase (must be UTF-8 format), will be sub-word as a keyword. And the same index, Wukong engine allows to bypass the built-in word documents directly enter keywords and labels, see types.SearchRequest structure annotation. RankOptions defines the sorting options. WeiboScoringCriteria is our scoring rules defined above. In addition, you can also OutputOffset and MaxOutputs parameters control the paging output. Search results in response variable, the specific content [types / search_response.go] (/ types / search_response.go) SearchResponse defined in the file structure, such as the structure returned keywords appear in the document location, you can used to generate the document summary.
+In which, Text is the search phrase (must be in UTF-8). And the same as in indexing, Wukong engine allows you to bypass the built-in segmenter and to enter tokens and labels directly. See types.SearchRequest struct's comment. RankOptions defines options used in scoring and ranking. WeiboScoringCriteria is our scoring criteria defined above. OutputOffset and MaxOutputs parameters are set to control output pagination. Search results are returned in a types.SearchResponse type, which contains query's segmented tokens and their locations in each doc, which can be used to generate search snippets.
 
 ## Rendering
 
-The final step to complete the search is to render the ranked docs to use. The usual practice is to make a backend service with the search engine, and then let the frontend calls the BE through JSON. Since it's not directly related to Wukong, I's skipping the details here.
+The final step to complete the search is rendering the ranked docs in front of the user. The usual practice is to make a backend service with the search engine, and then let the frontend calls the BE through JSON. Since it's not directly related to Wukong, I'm skipping the details here.
 
 ## Summary
 
-Now you should have gained a basic understanding of how Wukong engine works. I suggest you finishing the example by yourself. However if you do not have patience, here's the completed code [examples/codelab/search_server.go](/examples/codelab/search_server.go), which has less than 200 lines. Run this example is very simple: just enter examples/codelab directory and
+Now you should have gained a basic understanding on how Wukong engine works. I suggest you finishing the example by yourself. However if you do not have patience, here's the completed code [examples/codelab/search_server.go](/examples/codelab/search_server.go), which has less than 200 lines. Running this example is simple. Just enter examples/codelab directory and type
 
     go run search_server.go
 
-Wait for a couple seconds until indexing is down and then open [http://localhost:8080](http://localhost:8080) in your browser. This implements a simplified version of following site
+Wait for a couple seconds until indexing is done and then open [http://localhost:8080](http://localhost:8080) in your browser. The page implements a simplified version of following site
 
 http://soooweibo.com
 
