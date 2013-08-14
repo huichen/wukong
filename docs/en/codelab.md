@@ -28,7 +28,7 @@ Main goroutine receives a user request, segments the query and passes it to an i
 
 In order to improve concurrency at search time, documents are sharded based on content and docid (number of shards can be specified by user) -- indexing and search requests are sent to all shards in parallel, and ranked docs are merged in the main goroutine before returning to user.
 
-Above gives you basic idea on how Wukong works. A search system often consists of four parts, **documents crawling**, **indexing**, **search** and **rendering**. I will explain them in following sections.
+Above gives you basic idea on how Wukong works. A search system often consists of four parts, **document crawling**, **indexing**, **search** and **rendering**. I will explain them in following sections.
 
 ## Doc crawling
 
@@ -38,7 +38,7 @@ I've downloaded about one hundred thousand weibo posts and stored them in testda
 
     <Weibo id>||||<timestamp>||||<User id>||||<user name>||||<share counts>||||<comment counts>||||<fav counts>||||<thumbnail URL>||||<large image URL>||||<body>
 
-The Weibos are saved in following struct. Only saved data useful for this codelab.
+Weibos are saved in following struct (only stored fields used by this codelab)
 
 ```Go
 type Weibo struct {
@@ -50,7 +50,7 @@ type Weibo struct {
 }
 ```
 
-However, if you are interested how the data is crawled, see this script [testdata/crawl_weibo_data.go](/testdata/crawl_weibo_data.go).
+However, if you are interested in the crawling details, see this script [testdata/crawl_weibo_data.go](/testdata/crawl_weibo_data.go).
 
 ## Indexing
 
@@ -75,17 +75,17 @@ searcher.Init(types.EngineInitOptions{
 })
 ```
 
-[Types.EngineInitOptions](/types/engine_init_options.go) defines the initialization engines need to set parameters, such as where the loaded word from the dictionary file, stop word lists, indexes, type, BM25 parameters, and the default rating rules (see "Search" a) and output pagination options. Please read the details of the code structure of the Notes.
+[Types.EngineInitOptions](/types/engine_init_options.go) defines options in engine initialization, such as where the to load dictionary file for Chinese word segmentation, stop word lists, type of inverted index table, BM25 parameters, and the default search and pagination options.
 
-What must be emphasized is that please choose carefully IndexerInitOptions.IndexType type, there are three different types of index table:
+You must choose IndexerInitOptions.IndexType carefully. There are three different types of index table:
 
-1. DocIdsIndex, provide the most basic index records the search button appears only documents docid.
-2. FrequenciesIndex, in addition to recording docid, but also save the search button in the frequency of occurrence of each document, so if you need BM25 FrequenciesIndex what you need.
-3. LocationsIndex, this includes not only the index on the two kinds of content, but also additional storage a keyword specific location in a document, which is used [close distance calculation] (/ docs / token_proximity.md).
+1. DocIdsIndex, provides the most basic index where only docids are stored.
+2. FrequenciesIndex, in addition to DocIdsIndex, frequency of each tokens are stored to compute BM25 relevance.
+3. LocationsIndex, which additionally stores each token's locations in a document, in order to compute token proximity.
 
-These three indexes from top to bottom at the same time provide more computing power also consumes more memory, especially LocationsIndex, when the document is very long memory intensive. According to the need to balance choice.
+From top to bottom, at the same time of providing more computing power, it also consumes more memory, especially for LocationsIndex when documents are long. Please choose accordingly.
 
-After a good initialization can add an index, the following example will add a microblogging engine
+After initialization you can add documents to the index now. Following example shows you how to do so,
 
 ```Go
 searcher.IndexDocument(docId, types.DocumentIndexData{
@@ -97,16 +97,16 @@ searcher.IndexDocument(docId, types.DocumentIndexData{
 })
 ```
 
-DocId document must be unique, for it can be directly used microblogging microblogging ID. Wukong engine allows you to join three kinds of index data:
+DocId must be unique for each doc. Wukong engine allows you to use three types of index data:
 
-1. body of the document (content), will be sub-word as a keyword (tokens) added to the index.
-2. Documentation of keywords (tokens). When the body is empty, it allows the user to bypass the built-in word Wukong directly input document keywords, which makes the engine outside the document segmentation possible.
-3. Document Properties tab (labels), such as micro-blog author, category, etc. Tag does not appear in the text.
-4. custom score field (scoring fields), which allows you to add documents of any type ** ** ** ** arbitrary data structure used for sorting. "Search" will further introduce a custom score field usage.
+1. Body of the document (Content field), which will be tokenized and added to the index.
+2. You can also add tokens (Tokens field)directly when the body is empty, it allows user to bypass the built-in tokenzier and use any tokenization scheme he wants.
+3. Document labels (Labels field), such as Weibo author, category, etc. Labels can be words that don't appear in the body of the doc.
+4. Custom scoring fields (Fields), which allows you to add any type of data for ranking purpose. The 'Search' section will talk more on this.
 
-Special attention is ** **, keyword (tokens) and labels (labels) formed the indexer in the search key (keywords), documentation and code will be repeated three concepts, please do not be confused. Search for text in the search key is a logical query, such as a body of the document appears in the "bicycle" the key words there are "fitness" This category labels, but the "fitness" of the word does not directly appear in the text, When the query "bicycle" + "fitness" This search key combination, this article will be queried. Design label is intended to facilitate the dimension from the non-literal meaning quickly narrow scope of the query.
+Note that **tokens** and **labels** make up search **keywords**. Please remember the difference of the three concepts since documentation and code will mention them many times. Searching in the index table is a logical operation on docs. For example, say a document has "bicycle" the token and a "fitness" label, but "fitness" doesn't appear in text, when the query "bicycle" + "fitness" combination is searched, the article will be looked up. The purpose of having document labels is to quickly reduce number of documents from non-literal scopes.
 
-Engine uses the index of non-synchronous mode, that is when IndexDocument returns the index may not yet be added to the index table, which facilitate you cycle concurrently added to the index. If you need to wait before you start adding up the index operation, please call the following function
+The Engine adds indices asynchronously, so when IndexDocument returns the doc may not yet be actually indexed. If you need to wait before futher operation, call following function
 
 ```Go
 searcher.FlushIndex ()
