@@ -175,24 +175,25 @@ Which, Text is entered search phrase (must be UTF-8 format), will be sub-word as
 
 ## Rendering
 
-The final step in completing the user search is the search results to the user. The usual practice is to make a background service search engine, and then let the front end of the JSON-RPC way to call it. Front engine itself does not belong to Goku is not so much inked.
+The final step to complete the search is to render the ranked docs to use. The usual practice is to make a backend service with the search engine, and then let the frontend calls the BE through JSON. Since it's not directly related to Wukong, I's skipping the details here.
 
 ## Summary
 
-Read here, you should use Wukong microblogging search engine have a basic understanding, I suggest you do it yourself to complete it. If you do not have patience, you can see the code has been completed, see [examples / codelab / search_server.go] (/ examples / codelab / search_server.go), total of less than 200 lines. Run this example is very simple, enter the examples / codelab directory input
+Now you should have gained a basic understanding of how Wukong engine works. I suggest you finishing the example by yourself. However if you do not have patience, here's the completed code [examples/codelab/search_server.go](/examples/codelab/search_server.go), which has less than 200 lines. Run this example is very simple: just enter examples/codelab directory and
 
     go run search_server.go
 
-Waiting terminal in a "indexes, xxx microblogging" after the output in the browser to open [http://localhost:8080] (http://localhost:8080) to enter the search page, which implements a simplified version
+Wait for a couple seconds until indexing is down and then open [http://localhost:8080](http://localhost:8080) in your browser. This implements a simplified version of following site
+
 http://soooweibo.com
 
-If you want to learn more about Wukong engine, I suggest you read the code directly. Code directory structure is as follows:
+If you want to learn more about Wukong engine, I suggest you read the code:
 
-    /core       core components, including the index and sorter
-    /data       dictionary files and stop word file
+    /core       core components, including the indexer and ranker
+    /data       tokenization dictionary and stopword file
     /docs       documentation
-    /engine     engine, including the main coroutine, word coroutine, indexers, coroutines, and sorter implementation of coroutines
-    /examples   examples and performance testing procedures
+    /engine     engine, implementation of main/segmenter/indexer/ranker goroutines
+    /examples   examples and benchmark code
     /testdata   test data
-    /types      commonly used structure
-    /utils      commonly used functions
+    /types      common structs
+    /utils      common functions
