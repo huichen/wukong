@@ -16,7 +16,7 @@ Engine handles user requests, segmentation, indexing and sorting in their own go
 3. indexer goroutines, for building inverted index and lookup
 4. ranker goroutines, for scoring and ranking documents
 
-![](https://raw.github.com/huichen/wukong/master/docs/wukong.png)
+![](https://raw.github.com/huichen/wukong/master/docs/en/wukong_en.png)
 
 **Indexing pipeline**
 
