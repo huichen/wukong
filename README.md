@@ -12,7 +12,7 @@
 
 微博搜索演示 http://soooweibo.com
 
-[English](http://huichen.github.io/wukong/)
+[English documentation](http://huichen.github.io/wukong/)
 
 # 安装/更新
 
