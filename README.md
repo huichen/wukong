@@ -12,6 +12,8 @@
 
 微博搜索演示 http://soooweibo.com
 
+[English](http://huichen.github.io/wukong/)
+
 # 安装/更新
 
 先安装依赖包
