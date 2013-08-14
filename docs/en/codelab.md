@@ -1,6 +1,8 @@
 Wukong Engine Codelab
 ====
 
+**don't read. translation in progress**
+
 At the end of this codelab, you will be able to write a simple full-text search website using Wukong engine.
 
 If you do not know Go yet, [here](http://tour.golang.org/#1) is a tutorial.
