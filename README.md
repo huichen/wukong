@@ -1,5 +1,7 @@
-悟空全文搜索引擎
+悟空：高度可定制的全文搜索引擎
 ======
+
+[English documentation](http://huichen.github.io/wukong/)
 
 * [高效索引和搜索](/docs/benchmarking.md)（10M条微博3.6G数据7分钟索引完，2.5毫秒搜索响应时间，每秒可处理1.6K次请求）
 * 支持中文分词（使用[sego分词包](https://github.com/huichen/sego)并发分词，速度13MB/秒）
@@ -11,8 +13,6 @@
 * 采用对商业应用友好的[Apache License v2](/license.txt)发布
 
 微博搜索演示 http://soooweibo.com
-
-[English documentation](http://huichen.github.io/wukong/)
 
 # 安装/更新
 
