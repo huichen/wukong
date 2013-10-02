@@ -146,7 +146,8 @@ func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData) 
 	atomic.AddUint64(&engine.numIndexingRequests, 1)
 	hash := murmur.Murmur3([]byte(fmt.Sprint("%d%s", docId, data.Content)))
 	engine.segmenterChannel <- segmenterRequest{
-		docId: docId, hash: hash, data: data}
+		docId: docId, hash: hash, data: data
+	}
 }
 
 // 将文档从索引中删除
