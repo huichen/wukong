@@ -57,12 +57,14 @@ func (engine *Engine) segmenterWorker() {
 				Text: k,
 				// 非分词标注的词频设置为0，不参与tf-idf计算
 				Frequency: float32(len(v)),
-				Starts:    v}
+				Starts:    v
+			}
 			iTokens++
 		}
 		engine.indexerAddDocumentChannels[shard] <- indexerRequest
 		rankerRequest := rankerAddScoringFieldsRequest{
-			docId: request.docId, fields: request.data.Fields}
+			docId: request.docId, fields: request.data.Fields
+		}
 		engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
 	}
 }
