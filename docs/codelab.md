@@ -63,7 +63,7 @@ import (
 第一个包定义了引擎功能，第二个包定义了常用结构体。在使用引擎之前需要初始化，例如
 
 ```go
-var search engine.Engine
+var searcher engine.Engine
 searcher.Init(types.EngineInitOptions{
 	SegmenterDictionaries: "../../data/dictionary.txt",
 	StopTokenFile:         "../../data/stop_tokens.txt",
