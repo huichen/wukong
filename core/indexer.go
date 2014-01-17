@@ -331,8 +331,8 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 	// 动态规划
 	currentLocations = table[0].locations[indexPointers[0]]
 	currentMinValues = make([]int, len(currentLocations))
-	for i := 0; i+1 < len(tokens); i++ {
-		nextLocations = table[i+1].locations[indexPointers[i+1]]
+	for i := 1; i < len(tokens); i++ {
+		nextLocations = table[i].locations[indexPointers[i]]
 		nextMinValues = make([]int, len(nextLocations))
 		for j, _ := range nextMinValues {
 			nextMinValues[j] = -1
@@ -343,7 +343,7 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 			if currentMinValues[iCurrent] == -1 {
 				continue
 			}
-			for iNext+1 < len(nextLocations) && nextLocations[iNext] < currentLocation {
+			for iNext+1 < len(nextLocations) && nextLocations[iNext+1] < currentLocation {
 				iNext++
 			}
 
@@ -351,10 +351,10 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 				if to >= len(nextLocations) {
 					return
 				}
-				value := currentMinValues[from] + utils.AbsInt(nextLocations[to]-currentLocations[from]-len(tokens[i]))
+				value := currentMinValues[from] + utils.AbsInt(nextLocations[to]-currentLocations[from]-len(tokens[i-1]))
 				if nextMinValues[to] == -1 || value < nextMinValues[to] {
 					nextMinValues[to] = value
-					path[i+1][to] = from
+					path[i][to] = from
 				}
 			}
 
