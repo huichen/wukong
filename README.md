@@ -18,6 +18,7 @@
 ```
 go get -u github.com/huichen/sego
 go get -u github.com/huichen/murmur
+go get -u github.com/cznic/kv
 ```
 
 然后安装悟空引擎
