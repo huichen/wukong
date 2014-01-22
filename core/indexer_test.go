@@ -233,6 +233,18 @@ func TestLookupWithProximity(t *testing.T) {
 	})
 	utils.Expect(t, "[0 8 [3 12 15]] ",
 		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
+
+	// doc0 = "t3 t2 t1 . . . . . t2 t3"
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 0,
+		Keywords: []types.KeywordIndex{
+			{"t1", 0, []int{6}},
+			{"t2", 0, []int{3, 19}},
+			{"t3", 0, []int{0, 22}},
+		},
+	})
+	utils.Expect(t, "[0 10 [6 3 0]] ",
+		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
 }
 
 func TestLookupWithPartialLocations(t *testing.T) {
