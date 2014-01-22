@@ -107,6 +107,16 @@ func main() {
 	// 记录时间
 	t0 := time.Now()
 
+	// 打开处理器profile文件
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	// 建索引
 	log.Print("建索引 ... ")
 	docId := uint64(1)
@@ -143,27 +153,12 @@ func main() {
 	// 记录时间
 	t2 := time.Now()
 
-	// 打开处理器profile文件
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
 	done := make(chan bool)
 	for iThread := 0; iThread < numQueryThreads; iThread++ {
 		go search(done)
 	}
 	for iThread := 0; iThread < numQueryThreads; iThread++ {
 		<-done
-	}
-
-	// 停止处理器profile
-	if *cpuprofile != "" {
-		defer pprof.StopCPUProfile()
 	}
 
 	// 记录时间并计算分词速度
