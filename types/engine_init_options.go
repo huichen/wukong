@@ -24,6 +24,7 @@ var (
 		K1: 2.0,
 		B:  0.75,
 	}
+	defaultPersistentStorageShards = runtime.NumCPU()
 )
 
 type EngineInitOptions struct {
@@ -58,6 +59,11 @@ type EngineInitOptions struct {
 
 	// 默认的搜索选项
 	DefaultRankOptions *RankOptions
+
+	// 是否使用持久数据库，以及数据库文件保存的目录和裂分数目
+	UsePersistentStorage bool
+	PersistentStorageFolder string
+	PersistentStorageShards int
 }
 
 // 初始化EngineInitOptions，当用户未设定某个选项的值时用默认值取代
@@ -104,5 +110,9 @@ func (options *EngineInitOptions) Init() {
 
 	if options.DefaultRankOptions.ScoringCriteria == nil {
 		options.DefaultRankOptions.ScoringCriteria = defaultDefaultRankOptions.ScoringCriteria
+	}
+
+	if options.PersistentStorageShards == 0 {
+		options.PersistentStorageShards = defaultPersistentStorageShards
 	}
 }

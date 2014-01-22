@@ -1,14 +1,16 @@
 package engine
 
 import (
+	"encoding/gob"
 	"github.com/huichen/wukong/types"
 	"github.com/huichen/wukong/utils"
+	"os"
 	"reflect"
 	"testing"
 )
 
 type ScoringFields struct {
-	a, b, c float32
+	A, B, C float32
 }
 
 func AddDocs(engine *Engine) {
@@ -145,7 +147,7 @@ func (criteria TestScoringCriteria) Score(
 		return []float32{}
 	}
 	fs := fields.(ScoringFields)
-	return []float32{float32(doc.TokenProximity)*fs.a + fs.b*fs.c}
+	return []float32{float32(doc.TokenProximity)*fs.A + fs.B*fs.C}
 }
 
 func TestSearchWithCriteria(t *testing.T) {
@@ -304,4 +306,59 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 	utils.Expect(t, "0", outputs.Docs[2].DocId)
 	utils.Expect(t, "76", int(outputs.Docs[2].Scores[0]*1000))
 	utils.Expect(t, "[0 18]", outputs.Docs[2].TokenSnippetLocations)
+}
+
+func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
+	gob.Register(ScoringFields{})
+	var engine Engine
+	engine.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			OutputOffset:    0,
+			MaxOutputs:      10,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+		UsePersistentStorage:    true,
+		PersistentStorageFolder: "wukong.persistent",
+		PersistentStorageShards: 2,
+	})
+	AddDocs(&engine)
+	engine.RemoveDocument(4)
+	engine.Close()
+
+	var engine1 Engine
+	engine1.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			OutputOffset:    0,
+			MaxOutputs:      10,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+		UsePersistentStorage:    true,
+		PersistentStorageFolder: "wukong.persistent",
+		PersistentStorageShards: 2,
+	})
+
+	outputs := engine1.Search(types.SearchRequest{Text: "中国人口"})
+	utils.Expect(t, "2", len(outputs.Tokens))
+	utils.Expect(t, "中国", outputs.Tokens[0])
+	utils.Expect(t, "人口", outputs.Tokens[1])
+	utils.Expect(t, "2", len(outputs.Docs))
+
+	utils.Expect(t, "1", outputs.Docs[0].DocId)
+	utils.Expect(t, "1000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "[0 6]", outputs.Docs[0].TokenSnippetLocations)
+
+	utils.Expect(t, "0", outputs.Docs[1].DocId)
+	utils.Expect(t, "76", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "[0 18]", outputs.Docs[1].TokenSnippetLocations)
+
+	engine1.Close()
+	os.RemoveAll("wukong.persistent")
 }

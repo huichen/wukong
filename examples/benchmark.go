@@ -36,10 +36,13 @@ var (
 		"stop_token_file",
 		"../data/stop_tokens.txt",
 		"停用词文件")
-	cpuprofile      = flag.String("cpuprofile", "", "处理器profile文件")
-	memprofile      = flag.String("memprofile", "", "内存profile文件")
-	num_repeat_text = flag.Int("num_repeat_text", 10, "文本重复加入多少次")
-	index_type      = flag.Int("index_type", types.DocIdsIndex, "索引类型")
+	cpuprofile                = flag.String("cpuprofile", "", "处理器profile文件")
+	memprofile                = flag.String("memprofile", "", "内存profile文件")
+	num_repeat_text           = flag.Int("num_repeat_text", 10, "文本重复加入多少次")
+	index_type                = flag.Int("index_type", types.DocIdsIndex, "索引类型")
+	use_persistent            = flag.Bool("use_persistent", false, "是否使用持久存储")
+	persistent_storage_folder = flag.String("persistent_storage_folder", "benchmark.persistent", "持久存储数据库保存的目录")
+	persistent_storage_shards = flag.Int("persistent_storage_shards", 0, "持久数据库存储裂分数目")
 
 	searcher = engine.Engine{}
 	options  = types.RankOptions{
@@ -59,15 +62,21 @@ func main() {
 	log.Printf("待搜索的关键词为\"%s\"", searchQueries)
 
 	// 初始化
+	tBeginInit := time.Now()
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: *dictionaries,
 		StopTokenFile:         *stop_token_file,
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: *index_type,
 		},
-		NumShards:          NumShards,
-		DefaultRankOptions: &options,
+		NumShards:               NumShards,
+		DefaultRankOptions:      &options,
+		UsePersistentStorage:    *use_persistent,
+		PersistentStorageFolder: *persistent_storage_folder,
+		PersistentStorageShards: *persistent_storage_shards,
 	})
+	tEndInit := time.Now()
+	defer searcher.Close()
 
 	// 打开将要搜索的文件
 	file, err := os.Open(*weibo_data)
@@ -164,6 +173,33 @@ func main() {
 	log.Printf("搜索吞吐量每秒 %v 次查询",
 		float64(numRepeatQuery*numQueryThreads*len(searchQueries))/
 			t3.Sub(t2).Seconds())
+
+	if *use_persistent {
+		searcher.Close()
+		t4 := time.Now()
+		searcher1 := engine.Engine{}
+		searcher1.Init(types.EngineInitOptions{
+			SegmenterDictionaries: *dictionaries,
+			StopTokenFile:         *stop_token_file,
+			IndexerInitOptions: &types.IndexerInitOptions{
+				IndexType: *index_type,
+			},
+			NumShards:               NumShards,
+			DefaultRankOptions:      &options,
+			UsePersistentStorage:    *use_persistent,
+			PersistentStorageFolder: *persistent_storage_folder,
+			PersistentStorageShards: *persistent_storage_shards,
+		})
+		defer searcher1.Close()
+		t5 := time.Now()
+		t := t5.Sub(t4).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
+		log.Print("从持久存储加入的索引总数", searcher1.NumTokenIndexAdded())
+		log.Printf("从持久存储建立索引花费时间 %v", t)
+		log.Printf("从持久存储建立索引速度每秒添加 %f 百万个索引",
+			float64(searcher1.NumTokenIndexAdded())/t/(1000000))
+
+	}
+	os.RemoveAll(*persistent_storage_folder)
 }
 
 func search(ch chan bool) {
