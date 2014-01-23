@@ -50,6 +50,7 @@ func main() {
 	// 初始化
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "github.com/huichen/wukong/data/dictionary.txt"})
+	defer searcher.Close()
 
 	// 将文档加入索引
 	searcher.IndexDocument(0, types.DocumentIndexData{Content: "此次百度收购将成中国互联网最大并购"})
