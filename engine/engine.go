@@ -50,8 +50,8 @@ type Engine struct {
 	rankerRemoveScoringFieldsChannels []chan rankerRemoveScoringFieldsRequest
 
 	// 建立持久存储使用的通信通道
-	persistentStorageIndexDocumentChannel chan persistentStorageIndexDocumentRequest
-	persistentStorageInitChannel          chan bool
+	persistentStorageIndexDocumentChannels []chan persistentStorageIndexDocumentRequest
+	persistentStorageInitChannel           chan bool
 }
 
 func (engine *Engine) Init(options types.EngineInitOptions) {
@@ -120,9 +120,13 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 
 	// 初始化持久化存储通道
 	if engine.initOptions.UsePersistentStorage {
-		engine.persistentStorageIndexDocumentChannel = make(
-			chan persistentStorageIndexDocumentRequest,
-			engine.initOptions.PersistentStorageShards)
+		engine.persistentStorageIndexDocumentChannels =
+			make([]chan persistentStorageIndexDocumentRequest,
+				engine.initOptions.PersistentStorageShards)
+		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {
+			engine.persistentStorageIndexDocumentChannels[shard] = make(
+				chan persistentStorageIndexDocumentRequest)
+		}
 		engine.persistentStorageInitChannel = make(
 			chan bool, engine.initOptions.PersistentStorageShards)
 	}
@@ -211,8 +215,10 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 //         如果立刻调用Search可能无法查询到这个文档。强制刷新索引请调用FlushIndex函数。
 func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData) {
 	engine.internalIndexDocument(docId, data)
+
+	hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage {
-		engine.persistentStorageIndexDocumentChannel <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
+		engine.persistentStorageIndexDocumentChannels[hash] <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
 	}
 }
 
@@ -245,9 +251,8 @@ func (engine *Engine) RemoveDocument(docId uint64) {
 
 	if engine.initOptions.UsePersistentStorage {
 		// 从数据库中删除
-		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {
-			go engine.persistentStorageRemoveDocumentWorker(docId, shard)
-		}
+		hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+		go engine.persistentStorageRemoveDocumentWorker(docId, hash)
 	}
 }
 

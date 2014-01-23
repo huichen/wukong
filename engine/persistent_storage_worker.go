@@ -17,7 +17,7 @@ type persistentStorageIndexDocumentRequest struct {
 
 func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 	for {
-		request := <-engine.persistentStorageIndexDocumentChannel
+		request := <-engine.persistentStorageIndexDocumentChannels[shard]
 
 		// 得到key
 		b := make([]byte, 8)
@@ -38,7 +38,7 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 	}
 }
 
-func (engine *Engine) persistentStorageRemoveDocumentWorker(docId uint64, shard int) {
+func (engine *Engine) persistentStorageRemoveDocumentWorker(docId uint64, shard uint32) {
 	// 得到key
 	b := make([]byte, 8)
 	length := binary.PutUvarint(b, docId)

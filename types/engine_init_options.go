@@ -24,7 +24,7 @@ var (
 		K1: 2.0,
 		B:  0.75,
 	}
-	defaultPersistentStorageShards = runtime.NumCPU()
+	defaultPersistentStorageShards = 8
 )
 
 type EngineInitOptions struct {

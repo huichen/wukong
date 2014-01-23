@@ -152,6 +152,8 @@ func main() {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		UsePersistentStorage: true,
+		PersistentStorageFolder: "db",
 	})
 	wbs = make(map[uint64]Weibo)
 
@@ -163,8 +165,9 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func(){
 		for _ = range c {
+			log.Print("捕获Ctrl-c，退出服务器")
 			searcher.Close()
-			os.Exit(1)
+			os.Exit(0)
 		}
 	}()
 
