@@ -189,12 +189,12 @@ func main() {
 		t5 := time.Now()
 		t := t5.Sub(t4).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
 		log.Print("从持久存储加入的索引总数", searcher1.NumTokenIndexAdded())
-		log.Printf("从持久存储建立索引花费时间 %v", t)
+		log.Printf("从持久存储建立索引花费时间 %v 秒", t)
 		log.Printf("从持久存储建立索引速度每秒添加 %f 百万个索引",
 			float64(searcher1.NumTokenIndexAdded())/t/(1000000))
 
 	}
-	os.RemoveAll(*persistent_storage_folder)
+	//os.RemoveAll(*persistent_storage_folder)
 }
 
 func search(ch chan bool) {

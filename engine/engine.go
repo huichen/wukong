@@ -19,6 +19,7 @@ import (
 
 const (
 	NumNanosecondsInAMillisecond = 1000000
+	PersistentStorageFilePrefix  = "wukong"
 )
 
 type Engine struct {
@@ -155,7 +156,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		// 打开或者创建数据库
 		engine.dbs = make([]*kv.DB, engine.initOptions.PersistentStorageShards)
 		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {
-			dbPath := engine.initOptions.PersistentStorageFolder + "/persist." + strconv.Itoa(shard) + "-of-" + strconv.Itoa(engine.initOptions.PersistentStorageShards)
+			dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.Itoa(shard)
 			db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
 			if db == nil || err != nil {
 				log.Fatal("无法打开数据库", dbPath, ": ", err)
@@ -177,6 +178,17 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 			if engine.numIndexingRequests == engine.numDocumentsIndexed {
 				break
 			}
+		}
+
+		// 关闭并重新打开数据库
+		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {
+			engine.dbs[shard].Close()
+			dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.Itoa(shard)
+			db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
+			if db == nil || err != nil {
+				log.Fatal("无法打开数据库", dbPath, ": ", err)
+			}
+			engine.dbs[shard] = db
 		}
 
 		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {

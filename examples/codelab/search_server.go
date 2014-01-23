@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"github.com/huichen/wukong/engine"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"reflect"
 	"strconv"
 	"strings"
@@ -143,6 +145,7 @@ func main() {
 	flag.Parse()
 
 	// 初始化
+	gob.Register(WeiboScoringFields{})
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../../data/dictionary.txt",
 		StopTokenFile:         "../../data/stop_tokens.txt",
@@ -154,6 +157,16 @@ func main() {
 
 	// 索引
 	go indexWeibo()
+
+	// 捕获ctrl-c
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func(){
+		for _ = range c {
+			searcher.Close()
+			os.Exit(1)
+		}
+	}()
 
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir("static")))

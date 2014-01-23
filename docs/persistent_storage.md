@@ -21,7 +21,7 @@ type EngineInitOptions struct {
 或者词典有变化，这些变化会体现在启动后的引擎索引表中。
 2. 在调用engine.IndexDocument时，引擎将索引数据写入到PersistentStorageFolder指定
 的目录中。
-3. PersistentStorageShards定义了数据库裂分数目，默认为CPU数目。
+3. PersistentStorageShards定义了数据库裂分数目，默认为CPU数目。为了得到最好的性能，请调整这个参数使得每个裂分文件小于100M。
 4. 在调用engine.RemoveDocument删除一个文档后，该文档会从持久存储中剔除，下次启动
 引擎时不会载入该文档。
 

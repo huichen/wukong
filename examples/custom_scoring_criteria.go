@@ -14,6 +14,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/gob"
 	"flag"
 	"fmt"
 	"github.com/huichen/wukong/engine"
@@ -96,6 +97,7 @@ func main() {
 	log.Printf("待搜索的短语为\"%s\"", *query)
 
 	// 初始化
+	gob.Register(WeiboScoringFields{})
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: *dictionaries,
 		StopTokenFile:         *stop_token_file,
@@ -104,6 +106,7 @@ func main() {
 		},
 		DefaultRankOptions: &options,
 	})
+	defer searcher.Close()
 
 	// 读入微博数据
 	file, err := os.Open(*weibo_data)
