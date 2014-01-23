@@ -15,16 +15,8 @@
 
 # 安装/更新
 
-先安装依赖包
 ```
-go get -u github.com/huichen/sego
-go get -u github.com/huichen/murmur
-go get -u github.com/cznic/kv
-```
-
-然后安装悟空引擎
-```
-go get -u github.com/huichen/wukong
+go get -u -v github.com/huichen/wukong
 ```
 
 需要Go版本至少1.1.1
