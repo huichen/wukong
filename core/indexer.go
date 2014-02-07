@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 	"log"
 	"math"
 	"sync"
@@ -223,9 +224,7 @@ func (indexer *Indexer) Lookup(
 				}
 
 				// 计算搜索键在文档中的紧邻距离
-				tokenLocations := make([]int, len(tokens))
-				tokenProximity := computeTokenProximity(
-					table[:len(tokens)], indexPointers, tokens, &tokenLocations)
+				tokenProximity, tokenLocations := computeTokenProximity(table[:len(tokens)], indexPointers, tokens)
 				indexedDoc.TokenProximity = int32(tokenProximity)
 				indexedDoc.TokenSnippetLocations = tokenLocations
 
@@ -305,70 +304,89 @@ func (indexer *Indexer) searchIndex(
 
 // 计算搜索键在文本中的紧邻距离
 //
-// 假定第i个搜索键首字节出现在文本中的位置为P_i，长度L_i
+// 假定第 i 个搜索键首字节出现在文本中的位置为 P_i，长度 L_i
 // 紧邻距离计算公式为
 //
 // 	ArgMin(Sum(Abs(P_(i+1) - P_i - L_i)))
 //
-// 具体计算过程为先取定一个P_1，计算所有P_2的可能值中令Abs(P_2 - P_1 - L1)最小,
-// 然后固定P2后依照同样的方法选择P3，P4，等等。遍历所有可能的P_1得到最小的紧邻距离。
-//
-// 选定的P_i通过tokenLocations参数传回。
-func computeTokenProximity(
-	table []*KeywordIndices,
-	indexPointers []int,
-	tokens []string,
-	tokenLocations *[]int) int {
-	minTokenProximity := -1
-	currentLocations := make([]int, len(tokens))
-	for _, primaryLocation := range table[0].locations[indexPointers[0]] {
-		tokenProximity := 0
-		previousLocation := primaryLocation + len(tokens[0]) // P_1 + L_1
-		for iToken := 1; iToken < len(tokens); iToken++ {
-			locations := table[iToken].locations[indexPointers[iToken]]
+// 具体由动态规划实现，依次计算前 i 个 token 在每个出现位置的最优值。
+// 选定的 P_i 通过 tokenLocations 参数传回。
+func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens []string) (
+	minTokenProximity int, tokenLocations []int) {
+	minTokenProximity = -1
+	tokenLocations = make([]int, len(tokens))
 
-			// 寻找 P_i + L_i 后面最近的那个 P_(i+1)
-			for currentLocations[iToken] = 0; currentLocations[iToken] < len(locations) &&
-				locations[currentLocations[iToken]] < previousLocation; currentLocations[iToken]++ {
+	var (
+		currentLocations, nextLocations []int
+		currentMinValues, nextMinValues []int
+		path                            [][]int
+	)
+
+	// 初始化路径数组
+	path = make([][]int, len(tokens))
+	for i := 1; i < len(path); i++ {
+		path[i] = make([]int, len(table[i].locations[indexPointers[i]]))
+	}
+
+	// 动态规划
+	currentLocations = table[0].locations[indexPointers[0]]
+	currentMinValues = make([]int, len(currentLocations))
+	for i := 1; i < len(tokens); i++ {
+		nextLocations = table[i].locations[indexPointers[i]]
+		nextMinValues = make([]int, len(nextLocations))
+		for j, _ := range nextMinValues {
+			nextMinValues[j] = -1
+		}
+
+		var iNext int
+		for iCurrent, currentLocation := range currentLocations {
+			if currentMinValues[iCurrent] == -1 {
+				continue
+			}
+			for iNext+1 < len(nextLocations) && nextLocations[iNext+1] < currentLocation {
+				iNext++
 			}
 
-			if currentLocations[iToken] == 0 {
-				// 找到的P_(i+1)是搜索键i+1出现的第一个位置
-				tokenProximity += locations[currentLocations[iToken]] -
-					previousLocation
-			} else if currentLocations[iToken] == len(locations) {
-				// 否则当搜索键i+1出现的最后一个位置仍然小于P_i + L_i
-				tokenProximity += previousLocation -
-					locations[currentLocations[iToken]-1]
-				currentLocations[iToken]--
-			} else {
-				rightProximity := locations[currentLocations[iToken]] - previousLocation
-				leftProximity := previousLocation - locations[currentLocations[iToken]-1]
-				if rightProximity > leftProximity {
-					// 左侧更接近
-					tokenProximity += leftProximity
-					currentLocations[iToken]--
-				} else {
-					// 右侧更接近
-					tokenProximity += rightProximity
+			update := func(from int, to int) {
+				if to >= len(nextLocations) {
+					return
+				}
+				value := currentMinValues[from] + utils.AbsInt(nextLocations[to]-currentLocations[from]-len(tokens[i-1]))
+				if nextMinValues[to] == -1 || value < nextMinValues[to] {
+					nextMinValues[to] = value
+					path[i][to] = from
 				}
 			}
 
-			// 更新 P_(i+1) + L_(i+1)
-			previousLocation = locations[currentLocations[iToken]] + len(tokens[iToken])
+			// 最优解的状态转移只发生在左右最接近的位置
+			update(iCurrent, iNext)
+			update(iCurrent, iNext+1)
 		}
 
-		// 更新搜索键紧邻距离
-		if minTokenProximity < 0 || minTokenProximity > tokenProximity {
-			minTokenProximity = tokenProximity
-			(*tokenLocations)[0] = primaryLocation
-			for iToken := 1; iToken < len(tokens); iToken++ {
-				(*tokenLocations)[iToken] = table[iToken].locations[indexPointers[iToken]][currentLocations[iToken]]
-			}
+		currentLocations = nextLocations
+		currentMinValues = nextMinValues
+	}
+
+	// 找出最优解
+	var cursor int
+	for i, value := range currentMinValues {
+		if value == -1 {
+			continue
+		}
+		if minTokenProximity == -1 || value < minTokenProximity {
+			minTokenProximity = value
+			cursor = i
 		}
 	}
 
-	return minTokenProximity
+	// 从路径倒推出最优解的位置
+	for i := len(tokens) - 1; i >= 0; i-- {
+		if i != len(tokens)-1 {
+			cursor = path[i+1][cursor]
+		}
+		tokenLocations[i] = table[i].locations[indexPointers[i]][cursor]
+	}
+	return
 }
 
 // 从KeywordIndices中得到第i个文档的DocId

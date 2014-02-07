@@ -209,6 +209,7 @@ func TestDocIdsIndex(t *testing.T) {
 func TestLookupWithProximity(t *testing.T) {
 	var indexer Indexer
 	indexer.Init(types.IndexerInitOptions{IndexType: types.LocationsIndex})
+
 	// doc0 = "token2 token4 token4 token2 token3 token4"
 	indexer.AddDocument(&types.DocumentIndex{
 		DocId: 0,
@@ -218,9 +219,32 @@ func TestLookupWithProximity(t *testing.T) {
 			{"token4", 0, []int{7, 14, 35}},
 		},
 	})
-
 	utils.Expect(t, "[0 1 [21 28]] ",
 		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil)))
+
+	// doc0 = "t2 t1 . . . t2 t3"
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 0,
+		Keywords: []types.KeywordIndex{
+			{"t1", 0, []int{3}},
+			{"t2", 0, []int{0, 12}},
+			{"t3", 0, []int{15}},
+		},
+	})
+	utils.Expect(t, "[0 8 [3 12 15]] ",
+		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
+
+	// doc0 = "t3 t2 t1 . . . . . t2 t3"
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 0,
+		Keywords: []types.KeywordIndex{
+			{"t1", 0, []int{6}},
+			{"t2", 0, []int{3, 19}},
+			{"t3", 0, []int{0, 22}},
+		},
+	})
+	utils.Expect(t, "[0 10 [6 3 0]] ",
+		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
 }
 
 func TestLookupWithPartialLocations(t *testing.T) {
