@@ -3,7 +3,7 @@
 
 测试程序见 [examples/benchmark.go](/examples/benchmark.go)
 
-测试数据为从52个微博账号里抓取的十万条微博，通过benchmark.go中的-num_repeat_text参数（设为100）重复索引为一千万条，3.6G文本。测试环境Core i7-3615QM 2.30GHz 8核，14G内存。
+测试数据为从52个微博账号里抓取的十万条微博（请从[这里](https://raw.githubusercontent.com/huichen/wukong/43f20b4c0921cc704cf41fe8653e66a3fcbb7e31/testdata/weibo_data.txt)下载，然后copy到testdata目录），通过benchmark.go中的-num_repeat_text参数（设为100）重复索引为一千万条，3.6G文本。测试环境Core i7-3615QM 2.30GHz 8核，14G内存。
 
 改变测试程序中的NumShards变量可以改变数据单机裂分（sharding）的数目，裂分越多单请求的并发度越高延迟越小，但相应地每秒能处理的总请求数也会变少，比如：
 
