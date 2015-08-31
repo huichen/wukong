@@ -11,8 +11,6 @@
 * 可实现[分布式索引和搜索](/docs/distributed_indexing_and_search.md)
 * 采用对商业应用友好的[Apache License v2](/license.txt)发布
 
-微博搜索演示 http://soooweibo.com
-
 # 安装/更新
 
 ```
