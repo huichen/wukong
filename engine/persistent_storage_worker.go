@@ -20,7 +20,7 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 		request := <-engine.persistentStorageIndexDocumentChannels[shard]
 
 		// 得到key
-		b := make([]byte, 8)
+		b := make([]byte, 10)
 		length := binary.PutUvarint(b, request.docId)
 
 		// 得到value
@@ -40,7 +40,7 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 
 func (engine *Engine) persistentStorageRemoveDocumentWorker(docId uint64, shard uint32) {
 	// 得到key
-	b := make([]byte, 8)
+	b := make([]byte, 10)
 	length := binary.PutUvarint(b, docId)
 
 	// 从数据库删除该key
