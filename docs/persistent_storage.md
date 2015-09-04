@@ -28,12 +28,13 @@ type EngineInitOptions struct {
 
 ### 必须注意事项
 
-1. 如果排序器使用[自定义评分字段](/docs/custom_scoring_criteria.md)，那么该类型必须在gob中注册，比如在左边的例子中需要在调用engine.Init前加入：
+一、如果排序器使用[自定义评分字段](/docs/custom_scoring_criteria.md)，那么该类型必须在gob中注册，比如在左边的例子中需要在调用engine.Init前加入：
 ```
 gob.Register(MyScoringFields{})
 ```
 否则程序会崩溃。
-2. 在引擎退出时请使用engine.Close()来关闭数据库，如果数据库未关闭，数据库文件会被锁定，
+
+二、在引擎退出时请使用engine.Close()来关闭数据库，如果数据库未关闭，数据库文件会被锁定，
 这会导致引擎重启失败。解锁的方法是，进入PersistentStorageFolder指定的目录，删除所有以"."开头的文件即可。
 
 ### 性能测试

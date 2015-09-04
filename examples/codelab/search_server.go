@@ -152,8 +152,6 @@ func main() {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		UsePersistentStorage:    true,
-		PersistentStorageFolder: "db",
 	})
 	wbs = make(map[uint64]Weibo)
 
@@ -174,5 +172,5 @@ func main() {
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir("static")))
 	log.Print("服务器启动")
-	http.ListenAndServe("localhost:8080", nil)
+	http.ListenAndServe(":8080", nil)
 }
