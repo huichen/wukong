@@ -6,8 +6,8 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"flag"
-	"github.com/huichen/wukong/engine"
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/engine"
+	"github.com/henrylee2cn/wukong/types"
 	"io"
 	"log"
 	"net/http"
@@ -25,11 +25,11 @@ const (
 
 var (
 	searcher = engine.Engine{}
-	wbs      = map[uint64]Weibo{}
+	wbs      = map[string]Weibo{}
 )
 
 type Weibo struct {
-	Id           uint64 `json:"id"`
+	Id           string `json:"id"`
 	Timestamp    uint64 `json:"timestamp"`
 	UserName     string `json:"user_name"`
 	RepostsCount uint64 `json:"reposts_count"`
@@ -53,7 +53,7 @@ func indexWeibo() {
 			continue
 		}
 		wb := Weibo{}
-		wb.Id, _ = strconv.ParseUint(data[0], 10, 64)
+		wb.Id = data[0]
 		wb.Timestamp, _ = strconv.ParseUint(data[1], 10, 64)
 		wb.UserName = data[3]
 		wb.RepostsCount, _ = strconv.ParseUint(data[4], 10, 64)
@@ -155,7 +155,7 @@ func main() {
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "db",
 	})
-	wbs = make(map[uint64]Weibo)
+	wbs = make(map[string]Weibo)
 
 	// 索引
 	go indexWeibo()
@@ -174,5 +174,5 @@ func main() {
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir("static")))
 	log.Print("服务器启动")
-	http.ListenAndServe("localhost:8080", nil)
+	http.ListenAndServe(":8080", nil)
 }

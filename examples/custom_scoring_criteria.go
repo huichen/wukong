@@ -17,8 +17,8 @@ import (
 	"encoding/gob"
 	"flag"
 	"fmt"
-	"github.com/huichen/wukong/engine"
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/engine"
+	"github.com/henrylee2cn/wukong/types"
 	"log"
 	"os"
 	"reflect"
@@ -38,7 +38,7 @@ var (
 		"索引的微博帖子，每行当作一个文档")
 	query = flag.String(
 		"query",
-		"chinajoy游戏",
+		"开心",
 		"待搜索的短语")
 	dictionaries = flag.String(
 		"dictionaries",
@@ -141,7 +141,7 @@ func main() {
 	// 建立索引
 	log.Print("建立索引")
 	for i, text := range lines {
-		searcher.IndexDocument(uint64(i),
+		searcher.IndexDocument(strconv.Itoa(i),
 			types.DocumentIndexData{Content: text, Fields: fieldsSlice[i]})
 	}
 	searcher.FlushIndex()
@@ -154,7 +154,8 @@ func main() {
 	// 显示
 	fmt.Println()
 	for _, doc := range output.Docs {
-		fmt.Printf("%v %s\n\n", doc.Scores, lines[doc.DocId])
+		i, _ := strconv.Atoi(doc.DocId)
+		fmt.Printf("%v %s\n\n", doc.Scores, lines[i])
 	}
 	log.Printf("查询完毕")
 }

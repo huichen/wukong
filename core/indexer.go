@@ -1,8 +1,8 @@
 package core
 
 import (
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
+	"github.com/henrylee2cn/wukong/types"
+	"github.com/henrylee2cn/wukong/utils"
 	"log"
 	"math"
 	"sync"
@@ -27,13 +27,13 @@ type Indexer struct {
 	totalTokenLength float32
 
 	// 每个文档的关键词长度
-	docTokenLengths map[uint64]float32
+	docTokenLengths map[string]float32
 }
 
 // 反向索引表的一行，收集了一个搜索键出现的所有文档，按照DocId从小到大排序。
 type KeywordIndices struct {
 	// 下面的切片是否为空，取决于初始化时IndexType的值
-	docIds      []uint64  // 全部类型都有
+	docIds      []string  // 全部类型都有
 	frequencies []float32 // IndexType == FrequenciesIndex
 	locations   [][]int   // IndexType == LocationsIndex
 }
@@ -47,7 +47,7 @@ func (indexer *Indexer) Init(options types.IndexerInitOptions) {
 
 	indexer.tableLock.table = make(map[string]*KeywordIndices)
 	indexer.initOptions = options
-	indexer.docTokenLengths = make(map[uint64]float32)
+	indexer.docTokenLengths = make(map[string]float32)
 }
 
 // 向反向索引表中加入一个文档
@@ -82,7 +82,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 			case types.FrequenciesIndex:
 				ti.frequencies = []float32{keyword.Frequency}
 			}
-			ti.docIds = []uint64{document.DocId}
+			ti.docIds = []string{document.DocId}
 			indexer.tableLock.table[keyword.Text] = &ti
 			continue
 		}
@@ -114,7 +114,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 			copy(indices.frequencies[position+1:], indices.frequencies[position:])
 			indices.frequencies[position] = keyword.Frequency
 		}
-		indices.docIds = append(indices.docIds, 0)
+		indices.docIds = append(indices.docIds, "")
 		copy(indices.docIds[position+1:], indices.docIds[position:])
 		indices.docIds[position] = document.DocId
 	}
@@ -128,7 +128,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
 func (indexer *Indexer) Lookup(
-	tokens []string, labels []string, docIds *map[uint64]bool) (docs []types.IndexedDocument) {
+	tokens []string, labels []string, docIds *map[string]bool) (docs []types.IndexedDocument) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
@@ -271,7 +271,7 @@ func (indexer *Indexer) Lookup(
 // 第一个返回参数为找到的位置或需要插入的位置
 // 第二个返回参数标明是否找到
 func (indexer *Indexer) searchIndex(
-	indices *KeywordIndices, start int, end int, docId uint64) (int, bool) {
+	indices *KeywordIndices, start int, end int, docId string) (int, bool) {
 	// 特殊情况
 	if indexer.getIndexLength(indices) == start {
 		return start, false
@@ -390,7 +390,7 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 }
 
 // 从KeywordIndices中得到第i个文档的DocId
-func (indexer *Indexer) getDocId(ti *KeywordIndices, i int) uint64 {
+func (indexer *Indexer) getDocId(ti *KeywordIndices, i int) string {
 	return ti.docIds[i]
 }
 

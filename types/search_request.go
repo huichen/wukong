@@ -13,7 +13,7 @@ type SearchRequest struct {
 	Labels []string
 
 	// 当不为空时，仅从这些文档中搜索
-	DocIds []uint64
+	DocIds []string
 
 	// 排序选项
 	RankOptions *RankOptions

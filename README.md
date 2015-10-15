@@ -1,8 +1,8 @@
 悟空全文搜索引擎
 ======
 
-* [高效索引和搜索](/docs/benchmarking.md)（10M条微博3.6G数据7分钟索引完，2.5毫秒搜索响应时间，每秒可处理1.6K次请求）
-* 支持中文分词（使用[sego分词包](https://github.com/huichen/sego)并发分词，速度13MB/秒）
+* [高效索引和搜索](/docs/benchmarking.md)（1M条微博500M数据28秒索引完，1.65毫秒搜索响应时间，19K搜索QPS）
+* 支持中文分词（使用[sego分词包](https://github.com/huichen/sego)并发分词，速度27MB/秒）
 * 支持计算关键词在文本中的[紧邻距离](/docs/token_proximity.md)（token proximity）
 * 支持计算[BM25相关度](/docs/bm25.md)
 * 支持[自定义评分字段和评分规则](/docs/custom_scoring_criteria.md)
@@ -11,7 +11,7 @@
 * 可实现[分布式索引和搜索](/docs/distributed_indexing_and_search.md)
 * 采用对商业应用友好的[Apache License v2](/license.txt)发布
 
-微博搜索演示 http://soooweibo.com
+[微博搜索demo](http://vhaa7.fmt.tifan.net:8080/)
 
 # 安装/更新
 

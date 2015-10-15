@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/types"
 	"sync/atomic"
 )
 
@@ -12,7 +12,7 @@ type indexerAddDocumentRequest struct {
 type indexerLookupRequest struct {
 	tokens              []string
 	labels              []string
-	docIds              []uint64
+	docIds              []string
 	options             types.RankOptions
 	rankerReturnChannel chan rankerReturnRequest
 }
@@ -35,7 +35,7 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 		if len(request.docIds) == 0 {
 			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil)
 		} else {
-			docIds := make(map[uint64]bool)
+			docIds := make(map[string]bool)
 			for _, ids := range request.docIds {
 				docIds[ids] = true
 			}

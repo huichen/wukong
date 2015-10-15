@@ -1,11 +1,11 @@
 package engine
 
 import (
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/types"
 )
 
 type segmenterRequest struct {
-	docId uint64
+	docId string
 	hash  uint32
 	data  types.DocumentIndexData
 }

@@ -2,10 +2,11 @@ package engine
 
 import (
 	"encoding/gob"
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
+	"github.com/henrylee2cn/wukong/types"
+	"github.com/henrylee2cn/wukong/utils"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -14,28 +15,28 @@ type ScoringFields struct {
 }
 
 func AddDocs(engine *Engine) {
-	docId := uint64(0)
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	docId := 0
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国有十三亿人口人口",
 		Fields:  ScoringFields{1, 2, 3},
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国人口",
 		Fields:  nil,
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "有人口",
 		Fields:  ScoringFields{2, 3, 1},
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "有十三亿人口",
 		Fields:  ScoringFields{2, 3, 3},
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
 	})
@@ -224,10 +225,10 @@ func TestFrequenciesIndex(t *testing.T) {
 	utils.Expect(t, "2", len(outputs.Docs))
 
 	utils.Expect(t, "4", outputs.Docs[0].DocId)
-	utils.Expect(t, "2311", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "2823", int(outputs.Docs[0].Scores[0]*1000))
 
 	utils.Expect(t, "0", outputs.Docs[1].DocId)
-	utils.Expect(t, "2211", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "2115", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestRemoveDocument(t *testing.T) {
@@ -240,7 +241,7 @@ func TestRemoveDocument(t *testing.T) {
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument(4)
+	engine.RemoveDocument("4")
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "1", len(outputs.Docs))
@@ -263,8 +264,8 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 		},
 	})
 
-	docId := uint64(0)
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	docId := 0
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "",
 		Tokens: []types.TokenData{
 			{"中国", []int{0}},
@@ -273,7 +274,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 		Fields: ScoringFields{1, 2, 3},
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "",
 		Tokens: []types.TokenData{
 			{"中国", []int{0}},
@@ -282,7 +283,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 		Fields: ScoringFields{1, 2, 3},
 	})
 	docId++
-	engine.IndexDocument(docId, types.DocumentIndexData{
+	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
 	})
@@ -326,7 +327,7 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		PersistentStorageShards: 2,
 	})
 	AddDocs(&engine)
-	engine.RemoveDocument(4)
+	engine.RemoveDocument("4")
 	engine.Close()
 
 	var engine1 Engine

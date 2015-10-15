@@ -1,11 +1,11 @@
 package engine
 
 import (
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/types"
 )
 
 type rankerAddScoringFieldsRequest struct {
-	docId  uint64
+	docId  string
 	fields interface{}
 }
 
@@ -20,7 +20,7 @@ type rankerReturnRequest struct {
 }
 
 type rankerRemoveScoringFieldsRequest struct {
-	docId uint64
+	docId string
 }
 
 func (engine *Engine) rankerAddScoringFieldsWorker(shard int) {

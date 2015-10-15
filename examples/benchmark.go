@@ -4,12 +4,13 @@ package main
 import (
 	"bufio"
 	"flag"
-	"github.com/huichen/wukong/engine"
-	"github.com/huichen/wukong/types"
+	"github.com/henrylee2cn/wukong/engine"
+	"github.com/henrylee2cn/wukong/types"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -119,10 +120,10 @@ func main() {
 
 	// 建索引
 	log.Print("建索引 ... ")
-	docId := uint64(1)
+	docId := 1
 	for i := 0; i < *num_repeat_text; i++ {
 		for _, line := range lines {
-			searcher.IndexDocument(docId, types.DocumentIndexData{
+			searcher.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 				Content: line})
 			docId++
 			if docId-docId/1000000*1000000 == 0 {

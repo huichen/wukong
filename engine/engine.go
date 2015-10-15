@@ -3,11 +3,11 @@ package engine
 import (
 	"fmt"
 	"github.com/cznic/kv"
+	"github.com/henrylee2cn/wukong/core"
+	"github.com/henrylee2cn/wukong/types"
+	"github.com/henrylee2cn/wukong/utils"
 	"github.com/huichen/murmur"
 	"github.com/huichen/sego"
-	"github.com/huichen/wukong/core"
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"log"
 	"os"
 	"runtime"
@@ -213,22 +213,22 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 //      1. 这个函数是线程安全的，请尽可能并发调用以提高索引速度
 // 	2. 这个函数调用是非同步的，也就是说在函数返回时有可能文档还没有加入索引中，因此
 //         如果立刻调用Search可能无法查询到这个文档。强制刷新索引请调用FlushIndex函数。
-func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData) {
+func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData) {
 	engine.internalIndexDocument(docId, data)
 
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+	hash := murmur.Murmur3([]byte(docId)) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage {
 		engine.persistentStorageIndexDocumentChannels[hash] <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
 	}
 }
 
-func (engine *Engine) internalIndexDocument(docId uint64, data types.DocumentIndexData) {
+func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
 
 	atomic.AddUint64(&engine.numIndexingRequests, 1)
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d%s", docId, data.Content)))
+	hash := murmur.Murmur3([]byte(fmt.Sprint("%s%s", docId, data.Content)))
 	engine.segmenterChannel <- segmenterRequest{
 		docId: docId, hash: hash, data: data}
 }
@@ -240,7 +240,7 @@ func (engine *Engine) internalIndexDocument(docId uint64, data types.DocumentInd
 //
 // 注意：这个函数仅从排序器中删除文档的自定义评分字段，索引器不会发生变化。所以
 // 你的自定义评分字段必须能够区别评分字段为nil的情况，并将其从排序结果中删除。
-func (engine *Engine) RemoveDocument(docId uint64) {
+func (engine *Engine) RemoveDocument(docId string) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
@@ -251,7 +251,7 @@ func (engine *Engine) RemoveDocument(docId uint64) {
 
 	if engine.initOptions.UsePersistentStorage {
 		// 从数据库中删除
-		hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+		hash := murmur.Murmur3([]byte(docId)) % uint32(engine.initOptions.PersistentStorageShards)
 		go engine.persistentStorageRemoveDocumentWorker(docId, hash)
 	}
 }
