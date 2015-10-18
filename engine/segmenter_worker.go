@@ -62,33 +62,42 @@ func (engine *Engine) segmenterWorker() {
 				Starts:    v}
 			iTokens++
 		}
-		engine.indexerAddDocumentChannels[shard] <- indexerRequest
 
 		if request.documentIndexChan != nil {
-			// 返回DocumentIndex
-			request.documentIndexChan <- indexerRequest.document
-			// 统计被执行次数
-			documentIndexChanCount[documentIndexChan]++
-			// 等待通道被写满，即所有同类文档被分词完毕
-			for documentIndexChanCount[request.documentIndexChan] < cap(request.documentIndexChan) {
-				runtime.Gosched()
-			}
+			go engine.segmenterWorkerExec(request, indexerRequest, shard)
+		} else {
+			engine.segmenterWorkerExec(request, indexerRequest, shard)
+		}
+	}
+}
 
-			// 此时此处，外部插队执行关于documentIndexChan的处理...
-
-			// 等待通道数据被外部程序全部读出，即确保外部程序对于documentIndexChan的相关处理在建立索引前完成
-			for len(request.documentIndexChan) > 0 {
-				runtime.Gosched()
-			}
-
-			// 清除记录
-			if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
-				delete(documentIndexChanCount[request.documentIndexChan], request.documentIndexChan)
-			}
+func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerRequest indexerAddDocumentRequest, shard int) {
+	if request.documentIndexChan != nil {
+		// 返回DocumentIndex
+		request.documentIndexChan <- indexerRequest.document
+		// 统计被执行次数
+		documentIndexChanCount[request.documentIndexChan]++
+		// 等待通道被写满，即所有同类文档被分词完毕
+		for documentIndexChanCount[request.documentIndexChan] < cap(request.documentIndexChan) {
+			runtime.Gosched()
 		}
 
-		rankerRequest := rankerAddScoringFieldsRequest{
-			docId: request.docId, fields: request.data.Fields}
-		engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
+		// 此时此处，外部插队执行关于documentIndexChan的处理...
+
+		// 等待通道数据被外部程序全部读出，即确保外部程序对于documentIndexChan的相关处理在建立索引前完成
+		for len(request.documentIndexChan) > 0 {
+			runtime.Gosched()
+		}
+
+		// 清除记录
+		if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
+			delete(documentIndexChanCount, request.documentIndexChan)
+		}
 	}
+
+	engine.indexerAddDocumentChannels[shard] <- indexerRequest
+
+	rankerRequest := rankerAddScoringFieldsRequest{
+		docId: request.docId, fields: request.data.Fields}
+	engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
 }
