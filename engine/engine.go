@@ -203,6 +203,9 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	atomic.AddUint64(&engine.numDocumentsStored, engine.numIndexingRequests)
 }
 
+// 在执行IndexDocument方法的过程中对documentIndexChan写入的数据进行计数
+var documentIndexChanCount = map[chan<- *types.DocumentIndex]int{}
+
 // 将文档加入索引
 //
 // 输入参数：
@@ -210,11 +213,15 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 //	data	见DocumentIndexData注释
 //
 // 注意：
-//      1. 这个函数是线程安全的，请尽可能并发调用以提高索引速度
-// 	2. 这个函数调用是非同步的，也就是说在函数返回时有可能文档还没有加入索引中，因此
-//         如果立刻调用Search可能无法查询到这个文档。强制刷新索引请调用FlushIndex函数。
-func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData) {
-	engine.internalIndexDocument(docId, data)
+// 1. 这个函数是线程安全的，请尽可能并发调用以提高索引速度。
+// 2. 这个函数调用是非同步的，也就是说在函数返回时有可能文档还没有加入索引中，因此
+//    如果立刻调用Search可能无法查询到这个文档。强制刷新索引请调用FlushIndex函数。
+// 3. 可选参数documentIndexChan不为空时，将在分词步骤写入关键词及其词频信息，此时程序并进入等待状态，
+//    只有当其通道内所有数据被外部读出来，程序才能继续运行、建立索引。
+//    这样设计的目的在于让外部程序可以在索引建立之前，处理一些与documentIndexChan相关的事务。
+//    注意：documentIndexChan必须为异步通道，其容量设置为欲传入IndexDocument方法的总次数！
+func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData, documentIndexChan ...chan<- *types.DocumentIndex) {
+	engine.internalIndexDocument(docId, data, documentIndexChan...)
 
 	hash := murmur.Murmur3([]byte(docId)) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage {
@@ -222,15 +229,20 @@ func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData) 
 	}
 }
 
-func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData) {
+func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData, documentIndexChan ...chan<- *types.DocumentIndex) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
 
 	atomic.AddUint64(&engine.numIndexingRequests, 1)
 	hash := murmur.Murmur3([]byte(fmt.Sprint("%s%s", docId, data.Content)))
+
+	var dic chan<- *types.DocumentIndex
+	if len(documentIndexChan) > 0 {
+		dic = documentIndexChan[0]
+	}
 	engine.segmenterChannel <- segmenterRequest{
-		docId: docId, hash: hash, data: data}
+		docId: docId, hash: hash, data: data, documentIndexChan: dic}
 }
 
 // 将文档从索引中删除

@@ -2,12 +2,14 @@ package engine
 
 import (
 	"github.com/henrylee2cn/wukong/types"
+	"runtime"
 )
 
 type segmenterRequest struct {
-	docId string
-	hash  uint32
-	data  types.DocumentIndexData
+	docId             string
+	hash              uint32
+	data              types.DocumentIndexData
+	documentIndexChan chan<- *types.DocumentIndex
 }
 
 func (engine *Engine) segmenterWorker() {
@@ -61,6 +63,30 @@ func (engine *Engine) segmenterWorker() {
 			iTokens++
 		}
 		engine.indexerAddDocumentChannels[shard] <- indexerRequest
+
+		if request.documentIndexChan != nil {
+			// 返回DocumentIndex
+			request.documentIndexChan <- indexerRequest.document
+			// 统计被执行次数
+			documentIndexChanCount[documentIndexChan]++
+			// 等待通道被写满，即所有同类文档被分词完毕
+			for documentIndexChanCount[request.documentIndexChan] < cap(request.documentIndexChan) {
+				runtime.Gosched()
+			}
+
+			// 此时此处，外部插队执行关于documentIndexChan的处理...
+
+			// 等待通道数据被外部程序全部读出，即确保外部程序对于documentIndexChan的相关处理在建立索引前完成
+			for len(request.documentIndexChan) > 0 {
+				runtime.Gosched()
+			}
+
+			// 清除记录
+			if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
+				delete(documentIndexChanCount[request.documentIndexChan], request.documentIndexChan)
+			}
+		}
+
 		rankerRequest := rankerAddScoringFieldsRequest{
 			docId: request.docId, fields: request.data.Fields}
 		engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
