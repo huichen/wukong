@@ -2,10 +2,11 @@ package engine
 
 import (
 	"fmt"
-	"github.com/cznic/kv"
+	//"github.com/cznic/kv"
 	"github.com/huichen/murmur"
 	"github.com/huichen/sego"
 	"github.com/huichen/wukong/core"
+	kv "github.com/huichen/wukong/storage"
 	"github.com/huichen/wukong/types"
 	"github.com/huichen/wukong/utils"
 	"log"
@@ -37,7 +38,8 @@ type Engine struct {
 	rankers    []core.Ranker
 	segmenter  sego.Segmenter
 	stopTokens StopTokens
-	dbs        []*kv.DB
+	//dbs        []*kv.DB
+	dbs []kv.Storage
 
 	// 建立索引器使用的通信通道
 	segmenterChannel               chan segmenterRequest
@@ -158,7 +160,8 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		}
 
 		// 打开或者创建数据库
-		engine.dbs = make([]*kv.DB, engine.initOptions.PersistentStorageShards)
+		//engine.dbs = make([]*kv.DB, engine.initOptions.PersistentStorageShards)
+		engine.dbs = make([]kv.Storage, engine.initOptions.PersistentStorageShards)
 		for shard := 0; shard < engine.initOptions.PersistentStorageShards; shard++ {
 			dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.Itoa(shard)
 			db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
