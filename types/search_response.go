@@ -13,6 +13,9 @@ type SearchResponse struct {
 
 	// 搜索是否超时。超时的情况下也可能会返回部分结果
 	Timeout bool
+
+	// 关键词反向索引文档总数
+	Total int
 }
 
 type ScoredDocument struct {

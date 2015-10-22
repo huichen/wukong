@@ -2,7 +2,7 @@ package core
 
 import (
 	"github.com/henrylee2cn/wukong/types"
-	"github.com/henrylee2cn/wukong/utils"
+	// "github.com/henrylee2cn/wukong/utils"
 	"log"
 	"sort"
 	"sync"
@@ -48,8 +48,7 @@ func (ranker *Ranker) RemoveScoringFields(docId string) {
 }
 
 // 给文档评分并排序
-func (ranker *Ranker) Rank(
-	docs []types.IndexedDocument, options types.RankOptions) (outputDocs types.ScoredDocuments) {
+func (ranker *Ranker) Rank(docs []types.IndexedDocument, options types.RankOptions) (outputDocs types.ScoredDocuments) {
 	if ranker.initialized == false {
 		log.Fatal("排序器尚未初始化")
 	}
@@ -78,13 +77,15 @@ func (ranker *Ranker) Rank(
 	}
 
 	// 当用户要求只返回部分结果时返回部分结果
-	var start, end int
-	if options.MaxOutputs != 0 {
-		start = utils.MinInt(options.OutputOffset, len(outputDocs))
-		end = utils.MinInt(options.OutputOffset+options.MaxOutputs, len(outputDocs))
-	} else {
-		start = utils.MinInt(options.OutputOffset, len(outputDocs))
-		end = len(outputDocs)
-	}
-	return outputDocs[start:end]
+	// var start, end int
+	// if options.MaxOutputs != 0 {
+	// 	start = utils.MinInt(options.OutputOffset, len(outputDocs))
+	// 	end = utils.MinInt(options.OutputOffset+options.MaxOutputs, len(outputDocs))
+	// } else {
+	// 	start = utils.MinInt(options.OutputOffset, len(outputDocs))
+	// 	end = len(outputDocs)
+	// }
+	// return outputDocs[start:end]
+
+	return outputDocs
 }

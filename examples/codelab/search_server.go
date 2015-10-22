@@ -69,7 +69,7 @@ func indexWeibo() {
 				Timestamp:    weibo.Timestamp,
 				RepostsCount: weibo.RepostsCount,
 			},
-		})
+		}, 3)
 	}
 
 	searcher.FlushIndex()
@@ -120,6 +120,7 @@ func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 			OutputOffset:    0,
 			MaxOutputs:      100,
 		},
+		Shards: []int{2},
 	})
 
 	// 整理为输出格式
@@ -154,8 +155,10 @@ func main() {
 		},
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "db",
+		Shards:                  []int{0, 1},
 	})
 	wbs = make(map[string]Weibo)
+	log.Printf("添加索引完成\n")
 
 	// 索引
 	go indexWeibo()

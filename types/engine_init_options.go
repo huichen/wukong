@@ -24,7 +24,6 @@ var (
 		K1: 2.0,
 		B:  0.75,
 	}
-	defaultPersistentStorageShards = 8
 )
 
 type EngineInitOptions struct {
@@ -38,9 +37,9 @@ type EngineInitOptions struct {
 	// 分词器线程数
 	NumSegmenterThreads int
 
-	// 索引器和排序器的shard数目
-	// 被检索/排序的文档会被均匀分配到各个shard中
-	NumShards int
+	// 索引器和排序器的shard列表
+	// 被检索/排序的文档会被按自定义规则分配到各个shard中
+	Shards []int
 
 	// 索引器的信道缓冲长度
 	IndexerBufferLength int
@@ -61,9 +60,8 @@ type EngineInitOptions struct {
 	DefaultRankOptions *RankOptions
 
 	// 是否使用持久数据库，以及数据库文件保存的目录和裂分数目
-	UsePersistentStorage bool
+	UsePersistentStorage    bool
 	PersistentStorageFolder string
-	PersistentStorageShards int
 }
 
 // 初始化EngineInitOptions，当用户未设定某个选项的值时用默认值取代
@@ -72,12 +70,12 @@ func (options *EngineInitOptions) Init() {
 		log.Fatal("字典文件不能为空")
 	}
 
-	if options.NumSegmenterThreads == 0 {
-		options.NumSegmenterThreads = defaultNumSegmenterThreads
+	if len(options.Shards) == 0 {
+		log.Fatal("分片不能为空")
 	}
 
-	if options.NumShards == 0 {
-		options.NumShards = defaultNumShards
+	if options.NumSegmenterThreads == 0 {
+		options.NumSegmenterThreads = defaultNumSegmenterThreads
 	}
 
 	if options.IndexerBufferLength == 0 {
@@ -110,9 +108,5 @@ func (options *EngineInitOptions) Init() {
 
 	if options.DefaultRankOptions.ScoringCriteria == nil {
 		options.DefaultRankOptions.ScoringCriteria = defaultDefaultRankOptions.ScoringCriteria
-	}
-
-	if options.PersistentStorageShards == 0 {
-		options.PersistentStorageShards = defaultPersistentStorageShards
 	}
 }

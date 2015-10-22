@@ -10,8 +10,8 @@ import (
 )
 
 type persistentStorageIndexDocumentRequest struct {
-	docId string
-	data  types.DocumentIndexData
+	DocumentIndex *types.DocumentIndex
+	Fields        interface{}
 }
 
 func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
@@ -19,12 +19,12 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 		request := <-engine.persistentStorageIndexDocumentChannels[shard]
 
 		// 得到key
-		b := []byte(request.docId)
+		b := []byte(request.DocumentIndex.DocId)
 
 		// 得到value
 		var buf bytes.Buffer
 		enc := gob.NewEncoder(&buf)
-		err := enc.Encode(request.data)
+		err := enc.Encode(request)
 		if err != nil {
 			atomic.AddUint64(&engine.numDocumentsStored, 1)
 			continue
@@ -36,7 +36,7 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 	}
 }
 
-func (engine *Engine) persistentStorageRemoveDocumentWorker(docId string, shard uint32) {
+func (engine *Engine) persistentStorageRemoveDocumentWorker(shard int, docId string) {
 	// 得到key
 	b := []byte(docId)
 
@@ -53,29 +53,35 @@ func (engine *Engine) persistentStorageInitWorker(shard int) {
 		engine.persistentStorageInitChannel <- true
 		log.Fatal("无法遍历数据库")
 	}
-
 	for {
-		key, value, err := iter.Next()
+		_, value, err := iter.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			continue
 		}
 
-		// 得到docID
-		docId := string(key)
-
-		// 得到data
+		// 得到documentIndex
 		buf := bytes.NewReader(value)
 		dec := gob.NewDecoder(buf)
-		var data types.DocumentIndexData
-		err = dec.Decode(&data)
+		var request = new(persistentStorageIndexDocumentRequest)
+		err = dec.Decode(request)
 		if err != nil {
 			continue
 		}
 
-		// 添加索引
-		engine.internalIndexDocument(docId, data)
+		// 发送至索引器处理
+		engine.indexerAddDocumentChannels[shard] <- indexerAddDocumentRequest{
+			document: request.DocumentIndex,
+		}
+		// 发送至排序器处理
+		engine.rankerAddScoringFieldsChannels[shard] <- rankerAddScoringFieldsRequest{
+			docId:  request.DocumentIndex.DocId,
+			fields: request.Fields,
+		}
+
+		atomic.AddUint64(&engine.numIndexingRequests, 1)
+		atomic.AddUint64(&engine.numDocumentsStored, 1)
 	}
 	engine.persistentStorageInitChannel <- true
 }

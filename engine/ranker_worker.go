@@ -36,7 +36,7 @@ func (engine *Engine) rankerRankWorker(shard int) {
 		if request.options.MaxOutputs != 0 {
 			request.options.MaxOutputs += request.options.OutputOffset
 		}
-		request.options.OutputOffset = 0
+		// request.options.OutputOffset = 0
 		outputDocs := engine.rankers[shard].Rank(request.docs, request.options)
 		request.rankerReturnChannel <- rankerReturnRequest{docs: outputDocs}
 	}

@@ -7,15 +7,15 @@ import (
 
 type segmenterRequest struct {
 	docId             string
-	hash              uint32
+	shard             int
 	data              types.DocumentIndexData
 	documentIndexChan chan<- *types.DocumentIndex
 }
 
+// 只有IndexDocument时用到
 func (engine *Engine) segmenterWorker() {
 	for {
 		request := <-engine.segmenterChannel
-		shard := engine.getShard(request.hash)
 
 		tokensMap := make(map[string][]int)
 		numTokens := 0
@@ -53,25 +53,27 @@ func (engine *Engine) segmenterWorker() {
 				Keywords:    make([]types.KeywordIndex, len(tokensMap)),
 			},
 		}
+
 		iTokens := 0
 		for k, v := range tokensMap {
 			indexerRequest.document.Keywords[iTokens] = types.KeywordIndex{
 				Text: k,
 				// 非分词标注的词频设置为0，不参与tf-idf计算
 				Frequency: float32(len(v)),
-				Starts:    v}
+				Starts:    v,
+			}
 			iTokens++
 		}
 
 		if request.documentIndexChan != nil {
-			go engine.segmenterWorkerExec(request, indexerRequest, shard)
+			go engine.segmenterWorkerExec(request, indexerRequest)
 		} else {
-			engine.segmenterWorkerExec(request, indexerRequest, shard)
+			engine.segmenterWorkerExec(request, indexerRequest)
 		}
 	}
 }
 
-func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerRequest indexerAddDocumentRequest, shard int) {
+func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerRequest indexerAddDocumentRequest) {
 	if request.documentIndexChan != nil {
 		// 返回DocumentIndex
 		request.documentIndexChan <- indexerRequest.document
@@ -94,10 +96,24 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 			delete(documentIndexChanCount, request.documentIndexChan)
 		}
 	}
+	// 发送至索引器处理
+	engine.indexerAddDocumentChannels[request.shard] <- indexerRequest
+	// 发送至排序器处理
+	engine.rankerAddScoringFieldsChannels[request.shard] <- rankerAddScoringFieldsRequest{
+		docId:  request.docId,
+		fields: request.data.Fields,
+	}
 
-	engine.indexerAddDocumentChannels[shard] <- indexerRequest
-
-	rankerRequest := rankerAddScoringFieldsRequest{
-		docId: request.docId, fields: request.data.Fields}
-	engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
+	// 存索引信息至数据库
+	if engine.initOptions.UsePersistentStorage {
+		// for range indexerRequest.document.Keywords {
+		// if engine.indexers[request.shard].FoundKeyword(keyword.Text) {
+		// 	continue
+		// }
+		engine.persistentStorageIndexDocumentChannels[request.shard] <- persistentStorageIndexDocumentRequest{
+			DocumentIndex: indexerRequest.document,
+			Fields:        request.data.Fields,
+		}
+		// }
+	}
 }

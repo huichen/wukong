@@ -20,9 +20,9 @@ type indexerLookupRequest struct {
 func (engine *Engine) indexerAddDocumentWorker(shard int) {
 	for {
 		request := <-engine.indexerAddDocumentChannels[shard]
+		// 加索引至内存
 		engine.indexers[shard].AddDocument(request.document)
-		atomic.AddUint64(&engine.numTokenIndexAdded,
-			uint64(len(request.document.Keywords)))
+		atomic.AddUint64(&engine.numTokenIndexAdded, uint64(len(request.document.Keywords)))
 		atomic.AddUint64(&engine.numDocumentsIndexed, 1)
 	}
 }
@@ -47,10 +47,10 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 			continue
 		}
 
-		rankerRequest := rankerRankRequest{
+		engine.rankerRankChannels[shard] <- rankerRankRequest{
 			docs:                docs,
 			options:             request.options,
-			rankerReturnChannel: request.rankerReturnChannel}
-		engine.rankerRankChannels[shard] <- rankerRequest
+			rankerReturnChannel: request.rankerReturnChannel,
+		}
 	}
 }

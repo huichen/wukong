@@ -70,11 +70,10 @@ func main() {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: *index_type,
 		},
-		NumShards:               NumShards,
+		Shards:                  []int{0, 1, 2, 3, 4},
 		DefaultRankOptions:      &options,
 		UsePersistentStorage:    *use_persistent,
 		PersistentStorageFolder: *persistent_storage_folder,
-		PersistentStorageShards: *persistent_storage_shards,
 	})
 	tEndInit := time.Now()
 	defer searcher.Close()
@@ -124,7 +123,7 @@ func main() {
 	for i := 0; i < *num_repeat_text; i++ {
 		for _, line := range lines {
 			searcher.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
-				Content: line})
+				Content: line}, 1)
 			docId++
 			if docId-docId/1000000*1000000 == 0 {
 				log.Printf("已索引%d百万文档", docId/1000000)
@@ -180,11 +179,10 @@ func main() {
 			IndexerInitOptions: &types.IndexerInitOptions{
 				IndexType: *index_type,
 			},
-			NumShards:               NumShards,
+			Shards:                  []int{0, 1, 2, 3, 4},
 			DefaultRankOptions:      &options,
 			UsePersistentStorage:    *use_persistent,
 			PersistentStorageFolder: *persistent_storage_folder,
-			PersistentStorageShards: *persistent_storage_shards,
 		})
 		defer searcher1.Close()
 		t5 := time.Now()

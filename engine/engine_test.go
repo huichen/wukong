@@ -19,27 +19,27 @@ func AddDocs(engine *Engine) {
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国有十三亿人口人口",
 		Fields:  ScoringFields{1, 2, 3},
-	})
+	}, 0)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国人口",
 		Fields:  nil,
-	})
+	}, 1)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "有人口",
 		Fields:  ScoringFields{2, 3, 1},
-	})
+	}, 2)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "有十三亿人口",
 		Fields:  ScoringFields{2, 3, 3},
-	})
+	}, 3)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	})
+	}, 4)
 
 	engine.FlushIndex()
 }
@@ -67,6 +67,7 @@ func TestEngineIndexDocument(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -103,6 +104,7 @@ func TestReverseOrder(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -128,6 +130,7 @@ func TestOffsetAndMaxOutputs(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -161,6 +164,7 @@ func TestSearchWithCriteria(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -182,6 +186,7 @@ func TestCompactIndex(t *testing.T) {
 		DefaultRankOptions: &types.RankOptions{
 			ScoringCriteria: TestScoringCriteria{},
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -217,6 +222,7 @@ func TestFrequenciesIndex(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.FrequenciesIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -224,11 +230,11 @@ func TestFrequenciesIndex(t *testing.T) {
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "2", len(outputs.Docs))
 
-	utils.Expect(t, "4", outputs.Docs[0].DocId)
-	utils.Expect(t, "2823", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "0", outputs.Docs[0].DocId)
+	utils.Expect(t, "2500", int(outputs.Docs[0].Scores[0]*1000))
 
-	utils.Expect(t, "0", outputs.Docs[1].DocId)
-	utils.Expect(t, "2115", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "4", outputs.Docs[1].DocId)
+	utils.Expect(t, "2000", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestRemoveDocument(t *testing.T) {
@@ -238,10 +244,11 @@ func TestRemoveDocument(t *testing.T) {
 		DefaultRankOptions: &types.RankOptions{
 			ScoringCriteria: TestScoringCriteria{},
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument("4")
+	engine.RemoveDocument(4, "4")
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "1", len(outputs.Docs))
@@ -262,6 +269,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		Shards: []int{0, 1, 2, 3, 4},
 	})
 
 	docId := 0
@@ -272,7 +280,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"人口", []int{18, 24}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	})
+	}, 0)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "",
@@ -281,12 +289,12 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"人口", []int{6}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	})
+	}, 1)
 	docId++
 	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	})
+	}, 2)
 
 	engine.FlushIndex()
 
@@ -324,10 +332,10 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		},
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "wukong.persistent",
-		PersistentStorageShards: 2,
+		Shards:                  []int{0, 1, 2, 3, 4},
 	})
 	AddDocs(&engine)
-	engine.RemoveDocument("4")
+	engine.RemoveDocument(4, "4")
 	engine.Close()
 
 	var engine1 Engine
@@ -343,7 +351,7 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		},
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "wukong.persistent",
-		PersistentStorageShards: 2,
+		Shards:                  []int{0, 1, 2, 3, 4},
 	})
 
 	outputs := engine1.Search(types.SearchRequest{Text: "中国人口"})

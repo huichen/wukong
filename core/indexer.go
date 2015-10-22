@@ -50,6 +50,14 @@ func (indexer *Indexer) Init(options types.IndexerInitOptions) {
 	indexer.docTokenLengths = make(map[string]float32)
 }
 
+// 查找关键词是否已经存在
+// func (indexer *Indexer) FoundKeyword(kw string) bool {
+// 	indexer.tableLock.RLock()
+// 	defer indexer.tableLock.RUnlock()
+// 	_, foundKeyword := indexer.tableLock.table[kw]
+// 	return foundKeyword
+// }
+
 // 向反向索引表中加入一个文档
 func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 	if indexer.initialized == false {
@@ -58,6 +66,8 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 
 	indexer.tableLock.Lock()
 	defer indexer.tableLock.Unlock()
+
+	// log.Printf("%#v", document)
 
 	// 更新文档关键词总长度
 	if document.TokenLength != 0 {
@@ -84,12 +94,12 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 			}
 			ti.docIds = []string{document.DocId}
 			indexer.tableLock.table[keyword.Text] = &ti
+
 			continue
 		}
 
 		// 查找应该插入的位置
-		position, found := indexer.searchIndex(
-			indices, 0, indexer.getIndexLength(indices)-1, document.DocId)
+		position, found := indexer.searchIndex(indices, 0, indexer.getIndexLength(indices)-1, document.DocId)
 		if found {
 			docIdIsNew = false
 
@@ -127,8 +137,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
-func (indexer *Indexer) Lookup(
-	tokens []string, labels []string, docIds *map[string]bool) (docs []types.IndexedDocument) {
+func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds *map[string]bool) (docs []types.IndexedDocument) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
@@ -144,6 +153,7 @@ func (indexer *Indexer) Lookup(
 
 	indexer.tableLock.RLock()
 	defer indexer.tableLock.RUnlock()
+
 	table := make([]*KeywordIndices, len(keywords))
 	for i, keyword := range keywords {
 		indices, found := indexer.tableLock.table[keyword]
@@ -270,8 +280,7 @@ func (indexer *Indexer) Lookup(
 // 二分法查找indices中某文档的索引项
 // 第一个返回参数为找到的位置或需要插入的位置
 // 第二个返回参数标明是否找到
-func (indexer *Indexer) searchIndex(
-	indices *KeywordIndices, start int, end int, docId string) (int, bool) {
+func (indexer *Indexer) searchIndex(indices *KeywordIndices, start int, end int, docId string) (int, bool) {
 	// 特殊情况
 	if indexer.getIndexLength(indices) == start {
 		return start, false
