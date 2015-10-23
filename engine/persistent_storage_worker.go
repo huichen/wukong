@@ -14,7 +14,7 @@ type persistentStorageIndexDocumentRequest struct {
 	Fields        interface{}
 }
 
-func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
+func (engine *Engine) persistentStorageIndexDocumentWorker(shard uint64) {
 	for {
 		request := <-engine.persistentStorageIndexDocumentChannels[shard]
 
@@ -36,7 +36,7 @@ func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 	}
 }
 
-func (engine *Engine) persistentStorageRemoveDocumentWorker(shard int, docId string) {
+func (engine *Engine) persistentStorageRemoveDocumentWorker(shard uint64, docId string) {
 	// 得到key
 	b := []byte(docId)
 
@@ -44,7 +44,7 @@ func (engine *Engine) persistentStorageRemoveDocumentWorker(shard int, docId str
 	engine.dbs[shard].Delete(b)
 }
 
-func (engine *Engine) persistentStorageInitWorker(shard int) {
+func (engine *Engine) persistentStorageInitWorker(shard uint64) {
 	iter, err := engine.dbs[shard].SeekFirst()
 	if err == io.EOF {
 		engine.persistentStorageInitChannel <- true

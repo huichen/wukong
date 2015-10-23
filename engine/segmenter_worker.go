@@ -7,7 +7,7 @@ import (
 
 type segmenterRequest struct {
 	docId             string
-	shard             int
+	shard             uint64
 	data              types.DocumentIndexData
 	documentIndexChan chan<- *types.DocumentIndex
 }

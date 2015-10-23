@@ -17,7 +17,7 @@ type indexerLookupRequest struct {
 	rankerReturnChannel chan rankerReturnRequest
 }
 
-func (engine *Engine) indexerAddDocumentWorker(shard int) {
+func (engine *Engine) indexerAddDocumentWorker(shard uint64) {
 	for {
 		request := <-engine.indexerAddDocumentChannels[shard]
 		// 加索引至内存
@@ -27,7 +27,7 @@ func (engine *Engine) indexerAddDocumentWorker(shard int) {
 	}
 }
 
-func (engine *Engine) indexerLookupWorker(shard int) {
+func (engine *Engine) indexerLookupWorker(shard uint64) {
 	for {
 		request := <-engine.indexerLookupChannels[shard]
 

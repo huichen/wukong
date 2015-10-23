@@ -21,7 +21,7 @@ func main() {
 	// 初始化
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../data/dictionary.txt",
-		Shards:                []int{0, 1, 2, 3, 4},
+		Shards:                []uint64{0, 1, 2, 3, 4},
 	})
 	defer searcher.Close()
 

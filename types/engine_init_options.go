@@ -8,7 +8,6 @@ import (
 var (
 	// EngineInitOptions的默认值
 	defaultNumSegmenterThreads       = runtime.NumCPU()
-	defaultNumShards                 = 2
 	defaultIndexerBufferLength       = runtime.NumCPU()
 	defaultNumIndexerThreadsPerShard = runtime.NumCPU()
 	defaultRankerBufferLength        = runtime.NumCPU()
@@ -39,7 +38,7 @@ type EngineInitOptions struct {
 
 	// 索引器和排序器的shard列表
 	// 被检索/排序的文档会被按自定义规则分配到各个shard中
-	Shards []int
+	Shards []uint64
 
 	// 索引器的信道缓冲长度
 	IndexerBufferLength int

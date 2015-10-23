@@ -34,24 +34,24 @@ type Engine struct {
 	initOptions types.EngineInitOptions
 	initialized bool
 
-	indexers   map[int]*core.Indexer
-	rankers    map[int]*core.Ranker
+	indexers   map[uint64]*core.Indexer
+	rankers    map[uint64]*core.Ranker
 	segmenter  sego.Segmenter
 	stopTokens StopTokens
-	dbs        map[int]*kv.DB
+	dbs        map[uint64]*kv.DB
 
 	// 建立索引器使用的通信通道
 	segmenterChannel               chan segmenterRequest
-	indexerAddDocumentChannels     map[int]chan indexerAddDocumentRequest
-	rankerAddScoringFieldsChannels map[int]chan rankerAddScoringFieldsRequest
+	indexerAddDocumentChannels     map[uint64]chan indexerAddDocumentRequest
+	rankerAddScoringFieldsChannels map[uint64]chan rankerAddScoringFieldsRequest
 
 	// 建立排序器使用的通信通道
-	indexerLookupChannels             map[int]chan indexerLookupRequest
-	rankerRankChannels                map[int]chan rankerRankRequest
-	rankerRemoveScoringFieldsChannels map[int]chan rankerRemoveScoringFieldsRequest
+	indexerLookupChannels             map[uint64]chan indexerLookupRequest
+	rankerRankChannels                map[uint64]chan rankerRankRequest
+	rankerRemoveScoringFieldsChannels map[uint64]chan rankerRemoveScoringFieldsRequest
 
 	// 建立持久存储使用的通信通道
-	persistentStorageIndexDocumentChannels map[int]chan persistentStorageIndexDocumentRequest
+	persistentStorageIndexDocumentChannels map[uint64]chan persistentStorageIndexDocumentRequest
 	persistentStorageInitChannel           chan bool
 
 	// 动态添加工作协程的锁
@@ -80,8 +80,8 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	engine.stopTokens.Init(options.StopTokenFile)
 
 	// 初始化索引器和排序器
-	engine.indexers = make(map[int]*core.Indexer, numShards)
-	engine.rankers = make(map[int]*core.Ranker, numShards)
+	engine.indexers = make(map[uint64]*core.Indexer, numShards)
+	engine.rankers = make(map[uint64]*core.Ranker, numShards)
 
 	for _, shard := range options.Shards {
 		engine.indexers[shard] = new(core.Indexer)
@@ -95,8 +95,8 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	engine.segmenterChannel = make(chan segmenterRequest, options.NumSegmenterThreads)
 
 	// 初始化索引器通道
-	engine.indexerAddDocumentChannels = make(map[int]chan indexerAddDocumentRequest, numShards)
-	engine.indexerLookupChannels = make(map[int]chan indexerLookupRequest, numShards)
+	engine.indexerAddDocumentChannels = make(map[uint64]chan indexerAddDocumentRequest, numShards)
+	engine.indexerLookupChannels = make(map[uint64]chan indexerLookupRequest, numShards)
 
 	for _, shard := range options.Shards {
 		engine.indexerAddDocumentChannels[shard] = make(chan indexerAddDocumentRequest, options.IndexerBufferLength)
@@ -104,9 +104,9 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	}
 
 	// 初始化排序器通道
-	engine.rankerAddScoringFieldsChannels = make(map[int]chan rankerAddScoringFieldsRequest, numShards)
-	engine.rankerRankChannels = make(map[int]chan rankerRankRequest, numShards)
-	engine.rankerRemoveScoringFieldsChannels = make(map[int]chan rankerRemoveScoringFieldsRequest, numShards)
+	engine.rankerAddScoringFieldsChannels = make(map[uint64]chan rankerAddScoringFieldsRequest, numShards)
+	engine.rankerRankChannels = make(map[uint64]chan rankerRankRequest, numShards)
+	engine.rankerRemoveScoringFieldsChannels = make(map[uint64]chan rankerRemoveScoringFieldsRequest, numShards)
 
 	for _, shard := range options.Shards {
 		engine.rankerAddScoringFieldsChannels[shard] = make(chan rankerAddScoringFieldsRequest, options.RankerBufferLength)
@@ -116,7 +116,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 
 	// 初始化持久化存储通道
 	if options.UsePersistentStorage {
-		engine.persistentStorageIndexDocumentChannels = make(map[int]chan persistentStorageIndexDocumentRequest, numShards)
+		engine.persistentStorageIndexDocumentChannels = make(map[uint64]chan persistentStorageIndexDocumentRequest, numShards)
 
 		for _, shard := range options.Shards {
 			engine.persistentStorageIndexDocumentChannels[shard] = make(chan persistentStorageIndexDocumentRequest)
@@ -151,9 +151,9 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		}
 
 		// 打开或者创建数据库
-		engine.dbs = make(map[int]*kv.DB, numShards)
+		engine.dbs = make(map[uint64]*kv.DB, numShards)
 		for _, shard := range options.Shards {
-			dbPath := options.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.Itoa(shard)
+			dbPath := options.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.FormatUint(shard, 10)
 			db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
 			if db == nil || err != nil {
 				log.Fatal("无法打开数据库", dbPath, ": ", err)
@@ -201,7 +201,7 @@ var documentIndexChanCount = map[chan<- *types.DocumentIndex]int{}
 //    只有当其通道内所有数据被外部读出来，程序才能继续运行、建立索引。
 //    这样设计的目的在于让外部程序可以在索引建立之前，处理一些与documentIndexChan相关的事务。
 //    注意：documentIndexChan必须为异步通道，其容量设置为欲传入IndexDocument方法的总次数！
-func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData, shard int, documentIndexChan ...chan<- *types.DocumentIndex) {
+func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData, shard uint64, documentIndexChan ...chan<- *types.DocumentIndex) {
 	// 检验指定的shard是否存在
 	if err := engine.checkShard(shard); err != nil {
 		// 动态添加工作协程及数据库
@@ -211,7 +211,7 @@ func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData, 
 	engine.internalIndexDocument(docId, data, shard, documentIndexChan...)
 }
 
-func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData, shard int, documentIndexChan ...chan<- *types.DocumentIndex) {
+func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData, shard uint64, documentIndexChan ...chan<- *types.DocumentIndex) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
@@ -233,7 +233,7 @@ func (engine *Engine) internalIndexDocument(docId string, data types.DocumentInd
 //
 // 注意：这个函数仅从排序器中删除文档的自定义评分字段，索引器不会发生变化。所以
 // 你的自定义评分字段必须能够区别评分字段为nil的情况，并将其从排序结果中删除。
-func (engine *Engine) RemoveDocument(shard int, docId string) {
+func (engine *Engine) RemoveDocument(shard uint64, docId string) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
@@ -376,7 +376,7 @@ func (engine *Engine) Close() {
 }
 
 // 动态追加工作协程及数据库
-func (engine *Engine) appendRoutine(shard int) {
+func (engine *Engine) appendRoutine(shard uint64) {
 	engine.Mutex.Lock()
 	defer engine.Mutex.Unlock()
 
@@ -428,7 +428,7 @@ func (engine *Engine) appendRoutine(shard int) {
 		}
 
 		// 打开或者创建数据库
-		dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.Itoa(shard)
+		dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.FormatUint(shard, 10)
 		db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
 		if db == nil || err != nil {
 			log.Fatal("无法打开数据库", dbPath, ": ", err)
@@ -453,7 +453,7 @@ func (engine *Engine) appendRoutine(shard int) {
 }
 
 // 检查请求指定的shard是否已存在
-func (engine *Engine) checkShard(shard ...int) error {
+func (engine *Engine) checkShard(shard ...uint64) error {
 	if len(shard) == 0 {
 		for _, i := range engine.initOptions.Shards {
 			shard = append(shard, i)

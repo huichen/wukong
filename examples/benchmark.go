@@ -70,7 +70,7 @@ func main() {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: *index_type,
 		},
-		Shards:                  []int{0, 1, 2, 3, 4},
+		Shards:                  []uint64{0, 1, 2, 3, 4},
 		DefaultRankOptions:      &options,
 		UsePersistentStorage:    *use_persistent,
 		PersistentStorageFolder: *persistent_storage_folder,
@@ -179,7 +179,7 @@ func main() {
 			IndexerInitOptions: &types.IndexerInitOptions{
 				IndexType: *index_type,
 			},
-			Shards:                  []int{0, 1, 2, 3, 4},
+			Shards:                  []uint64{0, 1, 2, 3, 4},
 			DefaultRankOptions:      &options,
 			UsePersistentStorage:    *use_persistent,
 			PersistentStorageFolder: *persistent_storage_folder,

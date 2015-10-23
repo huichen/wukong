@@ -23,14 +23,14 @@ type rankerRemoveScoringFieldsRequest struct {
 	docId string
 }
 
-func (engine *Engine) rankerAddScoringFieldsWorker(shard int) {
+func (engine *Engine) rankerAddScoringFieldsWorker(shard uint64) {
 	for {
 		request := <-engine.rankerAddScoringFieldsChannels[shard]
 		engine.rankers[shard].AddScoringFields(request.docId, request.fields)
 	}
 }
 
-func (engine *Engine) rankerRankWorker(shard int) {
+func (engine *Engine) rankerRankWorker(shard uint64) {
 	for {
 		request := <-engine.rankerRankChannels[shard]
 		if request.options.MaxOutputs != 0 {
@@ -42,7 +42,7 @@ func (engine *Engine) rankerRankWorker(shard int) {
 	}
 }
 
-func (engine *Engine) rankerRemoveScoringFieldsWorker(shard int) {
+func (engine *Engine) rankerRemoveScoringFieldsWorker(shard uint64) {
 	for {
 		request := <-engine.rankerRemoveScoringFieldsChannels[shard]
 		engine.rankers[shard].RemoveScoringFields(request.docId)
