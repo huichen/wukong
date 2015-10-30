@@ -70,14 +70,26 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	engine.initOptions = options
 	engine.initialized = true
 
-	// 分片数量
-	numShards := len(options.Shards)
-
 	// 载入分词器词典
 	engine.segmenter.LoadDictionary(options.SegmenterDictionaries)
 
 	// 初始化停用词
 	engine.stopTokens.Init(options.StopTokenFile)
+
+	// 初始化分词器通道
+	engine.segmenterChannel = make(chan segmenterRequest, options.NumSegmenterThreads)
+
+	// 启动分词器
+	for iThread := 0; iThread < options.NumSegmenterThreads; iThread++ {
+		go engine.segmenterWorker()
+	}
+
+	// 分片数量
+	numShards := len(options.Shards)
+
+	if numShards == 0 {
+		return
+	}
 
 	// 初始化索引器和排序器
 	engine.indexers = make(map[uint64]*core.Indexer, numShards)
@@ -90,9 +102,6 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		engine.rankers[shard] = new(core.Ranker)
 		engine.rankers[shard].Init()
 	}
-
-	// 初始化分词器通道
-	engine.segmenterChannel = make(chan segmenterRequest, options.NumSegmenterThreads)
 
 	// 初始化索引器通道
 	engine.indexerAddDocumentChannels = make(map[uint64]chan indexerAddDocumentRequest, numShards)
@@ -122,11 +131,6 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 			engine.persistentStorageIndexDocumentChannels[shard] = make(chan persistentStorageIndexDocumentRequest)
 		}
 		engine.persistentStorageInitChannel = make(chan bool, numShards)
-	}
-
-	// 启动分词器
-	for iThread := 0; iThread < options.NumSegmenterThreads; iThread++ {
-		go engine.segmenterWorker()
 	}
 
 	// 启动索引器和排序器

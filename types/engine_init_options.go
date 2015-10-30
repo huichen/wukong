@@ -69,9 +69,9 @@ func (options *EngineInitOptions) Init() {
 		log.Fatal("字典文件不能为空")
 	}
 
-	if len(options.Shards) == 0 {
-		log.Fatal("分片不能为空")
-	}
+	// if len(options.Shards) == 0 {
+	// 	log.Fatal("分片不能为空")
+	// }
 
 	if options.NumSegmenterThreads == 0 {
 		options.NumSegmenterThreads = defaultNumSegmenterThreads
