@@ -27,14 +27,16 @@ func openBoltStorage(path string) (Storage, error) {
 	return &boltStorage{db}, nil
 }
 
-func (s *boltStorage) WAlName() string {
+func (s *boltStorage) WALName() string {
 	return s.db.Path()
 }
+
 func (s *boltStorage) Set(k []byte, v []byte) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(wukong_documents).Put(k, v)
 	})
 }
+
 func (s *boltStorage) Get(k []byte) (b []byte, err error) {
 	err = s.db.View(func(tx *bolt.Tx) error {
 		b = tx.Bucket(wukong_documents).Get(k)
@@ -42,6 +44,7 @@ func (s *boltStorage) Get(k []byte) (b []byte, err error) {
 	})
 	return
 }
+
 func (s *boltStorage) Delete(k []byte) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(wukong_documents).Delete(k)

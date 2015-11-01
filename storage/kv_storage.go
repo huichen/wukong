@@ -21,7 +21,7 @@ func openKVStorage(path string) (Storage, error) {
 	return db, nil
 }
 
-func (s *kvStorage) WAlName() string {
+func (s *kvStorage) WALName() string {
 	return s.db.WALName()
 }
 

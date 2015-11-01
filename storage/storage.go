@@ -6,19 +6,15 @@ import (
 	"time"
 )
 
-const DEFAULT_STORAGE_ENGIND = "bolt"
+const DEFAULT_STORAGE_ENGINE = "bolt"
 
-var _supported_storage = map[string]func(path string) (Storage, error){
+var supportedStorage = map[string]func(path string) (Storage, error){
 	"kv":   openKVStorage,
 	"bolt": openBoltStorage,
 }
 
 func RegisterStorageEngine(name string, fn func(path string) (Storage, error)) {
-	_supported_storage[name] = fn
-}
-
-type Options struct {
-	Timeout time.Duration
+	supportedStorage[name] = fn
 }
 
 type Storage interface {
@@ -27,15 +23,15 @@ type Storage interface {
 	Delete(k []byte) error
 	ForEach(fn func(k, v []byte) error) error
 	Close() error
-	WAlName() string
+	WALName() string
 }
 
 func OpenStorage(path string) (Storage, error) {
 	wse := os.Getenv("WUKONG_STORAGE_ENGINE")
 	if wse == "" {
-		wse = DEFAULT_STORAGE_ENGIND
+		wse = DEFAULT_STORAGE_ENGINE
 	}
-	if has, fn := _supported_storage[wse]; has {
+	if has, fn := supportedStorage[wse]; has {
 		return fn(path)
 	}
 	return nil, fmt.Errorf("unsupported storage engine %v", wse)
