@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func TestOpenOrCreateKv(t *testing.T) {
-	db, err := openKVStorage("kv_test")
+func TestOpenOrCreateBolt(t *testing.T) {
+	db, err := openBoltStorage("bolt_test")
 	utils.Expect(t, "<nil>", err)
 	db.Close()
 
-	db, err = openKVStorage("kv_test")
+	db, err = openBoltStorage("bolt_test")
 	utils.Expect(t, "<nil>", err)
 	err = db.Set([]byte("key1"), []byte("value1"))
 	utils.Expect(t, "<nil>", err)
@@ -24,5 +24,5 @@ func TestOpenOrCreateKv(t *testing.T) {
 	walFile := db.WALName()
 	db.Close()
 	os.Remove(walFile)
-	os.Remove("kv_test")
+	os.Remove("bolt_test")
 }

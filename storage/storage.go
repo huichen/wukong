@@ -3,7 +3,6 @@ package storage
 import (
 	"fmt"
 	"os"
-	"time"
 )
 
 const DEFAULT_STORAGE_ENGINE = "bolt"
@@ -31,7 +30,7 @@ func OpenStorage(path string) (Storage, error) {
 	if wse == "" {
 		wse = DEFAULT_STORAGE_ENGINE
 	}
-	if has, fn := supportedStorage[wse]; has {
+	if fn, has := supportedStorage[wse]; has {
 		return fn(path)
 	}
 	return nil, fmt.Errorf("unsupported storage engine %v", wse)

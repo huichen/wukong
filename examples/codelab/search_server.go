@@ -146,17 +146,26 @@ func main() {
 
 	// 初始化
 	gob.Register(WeiboScoringFields{})
+	log.Print("引擎开始初始化")
 	searcher.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../../data/dictionary.txt",
 		StopTokenFile:         "../../data/stop_tokens.txt",
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		// 如果你希望使用持久存储，启用下面的选项
+		// 默认使用boltdb持久化，如果你希望修改数据库类型
+		// 请修改 WUKONG_STORAGE_ENGINE 环境变量
+		// UsePersistentStorage: true,
+		// PersistentStorageFolder: "weibo_search",
 	})
+	log.Print("引擎初始化完毕")
 	wbs = make(map[uint64]Weibo)
 
 	// 索引
+	log.Print("建索引开始")
 	go indexWeibo()
+	log.Print("建索引完毕")
 
 	// 捕获ctrl-c
 	c := make(chan os.Signal, 1)
@@ -172,5 +181,5 @@ func main() {
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir("static")))
 	log.Print("服务器启动")
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8180", nil))
 }

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/cznic/kv"
+	"io"
 )
 
 type kvStorage struct {
@@ -15,10 +16,10 @@ func openKVStorage(path string) (Storage, error) {
 		var errCreate error
 		db, errCreate = kv.Create(path, options)
 		if errCreate != nil {
-			return db, errCreate
+			return &kvStorage{db}, errCreate
 		}
 	}
-	return db, nil
+	return &kvStorage{db}, nil
 }
 
 func (s *kvStorage) WALName() string {
