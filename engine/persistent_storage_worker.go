@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/gob"
 	"github.com/huichen/wukong/types"
-	"io"
-	"log"
+	//"io"
+	//"log"
 	"sync/atomic"
 )
 
@@ -47,24 +47,45 @@ func (engine *Engine) persistentStorageRemoveDocumentWorker(docId uint64, shard 
 	engine.dbs[shard].Delete(b[0:length])
 }
 
+// func (engine *Engine) persistentStorageInitWorker(shard int) {
+// 	iter, err := engine.dbs[shard].SeekFirst()
+// 	if err == io.EOF {
+// 		engine.persistentStorageInitChannel <- true
+// 		return
+// 	} else if err != nil {
+// 		engine.persistentStorageInitChannel <- true
+// 		log.Fatal("无法遍历数据库")
+// 	}
+
+// 	for {
+// 		key, value, err := iter.Next()
+// 		if err == io.EOF {
+// 			break
+// 		} else if err != nil {
+// 			continue
+// 		}
+
+// 		// 得到docID
+// 		docId, _ := binary.Uvarint(key)
+
+// 		// 得到data
+// 		buf := bytes.NewReader(value)
+// 		dec := gob.NewDecoder(buf)
+// 		var data types.DocumentIndexData
+// 		err = dec.Decode(&data)
+// 		if err != nil {
+// 			continue
+// 		}
+
+// 		// 添加索引
+// 		engine.internalIndexDocument(docId, data)
+// 	}
+// 	engine.persistentStorageInitChannel <- true
+// }
+
 func (engine *Engine) persistentStorageInitWorker(shard int) {
-	iter, err := engine.dbs[shard].SeekFirst()
-	if err == io.EOF {
-		engine.persistentStorageInitChannel <- true
-		return
-	} else if err != nil {
-		engine.persistentStorageInitChannel <- true
-		log.Fatal("无法遍历数据库")
-	}
-
-	for {
-		key, value, err := iter.Next()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			continue
-		}
-
+	engine.dbs[shard].ForEach(func(k, v []byte) error {
+		key, value := k, v
 		// 得到docID
 		docId, _ := binary.Uvarint(key)
 
@@ -72,13 +93,12 @@ func (engine *Engine) persistentStorageInitWorker(shard int) {
 		buf := bytes.NewReader(value)
 		dec := gob.NewDecoder(buf)
 		var data types.DocumentIndexData
-		err = dec.Decode(&data)
-		if err != nil {
-			continue
+		err := dec.Decode(&data)
+		if err == nil {
+			// 添加索引
+			engine.internalIndexDocument(docId, data)
 		}
-
-		// 添加索引
-		engine.internalIndexDocument(docId, data)
-	}
+		return nil
+	})
 	engine.persistentStorageInitChannel <- true
 }
