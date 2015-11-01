@@ -181,5 +181,5 @@ func main() {
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir("static")))
 	log.Print("服务器启动")
-	log.Fatal(http.ListenAndServe(":8180", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
