@@ -26,6 +26,10 @@ const (
 var (
 	searcher = engine.Engine{}
 	wbs      = map[uint64]Weibo{}
+	weiboData = flag.String("weibo_data", "../../testdata/weibo_data.txt", "微博数据文件")
+	dictFile = flag.String("dict_file", "../../data/dictionary.txt", "词典文件")
+	stopTokenFile = flag.String("stop_token_file", "../../data/stop_tokens.txt", "停用词文件")
+	staticFolder = flag.String("static_folder", "static", "静态文件目录")
 )
 
 type Weibo struct {
@@ -41,7 +45,7 @@ type Weibo struct {
 *******************************************************************************/
 func indexWeibo() {
 	// 读入微博数据
-	file, err := os.Open("../../testdata/weibo_data.txt")
+	file, err := os.Open(*weiboData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -148,8 +152,8 @@ func main() {
 	gob.Register(WeiboScoringFields{})
 	log.Print("引擎开始初始化")
 	searcher.Init(types.EngineInitOptions{
-		SegmenterDictionaries: "../../data/dictionary.txt",
-		StopTokenFile:         "../../data/stop_tokens.txt",
+		SegmenterDictionaries: *dictFile,
+		StopTokenFile:         *stopTokenFile,
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
@@ -179,7 +183,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/json", JsonRpcServer)
-	http.Handle("/", http.FileServer(http.Dir("static")))
+	http.Handle("/", http.FileServer(http.Dir(*staticFolder)))
 	log.Print("服务器启动")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
