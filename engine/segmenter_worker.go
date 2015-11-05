@@ -3,13 +3,15 @@ package engine
 import (
 	"github.com/henrylee2cn/wukong/types"
 	"runtime"
+	"sync"
 )
 
 type segmenterRequest struct {
 	docId             string
 	shard             uint64
 	data              types.DocumentIndexData
-	documentIndexChan chan<- *types.DocumentIndex
+	documentIndexChan chan *types.DocumentIndex
+	sync.Mutex
 }
 
 // 只有IndexDocument时用到
@@ -77,17 +79,26 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 	if request.documentIndexChan != nil {
 		// 返回DocumentIndex
 		request.documentIndexChan <- indexerRequest.document
+
 		// 统计被执行次数
+		engine.Mutex.Lock()
 		documentIndexChanCount[request.documentIndexChan]++
+		engine.Mutex.Unlock()
+
+		// 此时此处，外部插队执行关于documentIndexChan的处理...
+
 		// 等待通道被写满，即所有同类文档被分词完毕
 		for documentIndexChanCount[request.documentIndexChan] < cap(request.documentIndexChan) {
 			runtime.Gosched()
 		}
 
-		// 此时此处，外部插队执行关于documentIndexChan的处理...
-
 		// 等待通道数据被外部程序全部读出，即确保外部程序对于documentIndexChan的相关处理在建立索引前完成
 		for len(request.documentIndexChan) > 0 {
+			runtime.Gosched()
+		}
+
+		// 等待通道关闭
+		for range request.documentIndexChan {
 			runtime.Gosched()
 		}
 
