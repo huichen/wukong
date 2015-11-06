@@ -3,7 +3,6 @@ package engine
 import (
 	"github.com/henrylee2cn/wukong/types"
 	"runtime"
-	"sync"
 )
 
 type segmenterRequest struct {
@@ -11,7 +10,6 @@ type segmenterRequest struct {
 	shard             uint64
 	data              types.DocumentIndexData
 	documentIndexChan chan *types.DocumentIndex
-	sync.Mutex
 }
 
 // 只有IndexDocument时用到
@@ -81,14 +79,14 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 		request.documentIndexChan <- indexerRequest.document
 
 		// 统计被执行次数
-		engine.Mutex.Lock()
-		documentIndexChanCount[request.documentIndexChan]++
-		engine.Mutex.Unlock()
+		documentIndexChanCount[request.documentIndexChan].Mutex.Lock()
+		documentIndexChanCount[request.documentIndexChan].Num++
+		documentIndexChanCount[request.documentIndexChan].Mutex.Unlock()
 
 		// 此时此处，外部插队执行关于documentIndexChan的处理...
 
 		// 等待通道被写满，即所有同类文档被分词完毕
-		for documentIndexChanCount[request.documentIndexChan] < cap(request.documentIndexChan) {
+		for documentIndexChanCount[request.documentIndexChan].Num < cap(request.documentIndexChan) {
 			runtime.Gosched()
 		}
 

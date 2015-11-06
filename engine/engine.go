@@ -58,9 +58,6 @@ type Engine struct {
 	sync.Mutex
 }
 
-// 在执行IndexDocument方法的过程中对documentIndexChan写入的数据进行计数
-var documentIndexChanCount = map[chan *types.DocumentIndex]int{}
-
 func (engine *Engine) Init(options types.EngineInitOptions) {
 	// 将线程数设置为CPU数
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -189,6 +186,14 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	}
 }
 
+// 在执行IndexDocument方法的过程中对documentIndexChan写入的数据进行计数
+var documentIndexChanCount = map[chan *types.DocumentIndex]*Count{}
+
+type Count struct {
+	Num int
+	sync.Mutex
+}
+
 // 将文档加入索引
 //
 // 输入参数：
@@ -210,10 +215,6 @@ func (engine *Engine) IndexDocument(docId string, data types.DocumentIndexData, 
 		engine.appendRoutine(shard)
 	}
 
-	engine.internalIndexDocument(docId, data, shard, documentIndexChan...)
-}
-
-func (engine *Engine) internalIndexDocument(docId string, data types.DocumentIndexData, shard uint64, documentIndexChan ...chan *types.DocumentIndex) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
@@ -223,6 +224,9 @@ func (engine *Engine) internalIndexDocument(docId string, data types.DocumentInd
 	var dichan chan *types.DocumentIndex
 	if len(documentIndexChan) > 0 {
 		dichan = documentIndexChan[0]
+		if _, ok := documentIndexChanCount[dichan]; !ok {
+			documentIndexChanCount[dichan] = new(Count)
+		}
 	}
 
 	engine.segmenterChannel <- segmenterRequest{docId: docId, shard: shard, data: data, documentIndexChan: dichan}
