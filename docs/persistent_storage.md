@@ -7,10 +7,10 @@
 type EngineInitOptions struct {
   // 略过其他选项
 
-  // 是否使用持久数据库，以及数据库文件保存的目录和裂分数目
+  // 是否使用持久数据库，以及数据库文件保存目录和数据库引擎
   UsePersistentStorage bool
   PersistentStorageFolder string
-  PersistentStorageShards int
+  PersistentStorageEngine string
 }
 ```
 

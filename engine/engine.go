@@ -2,11 +2,10 @@ package engine
 
 import (
 	"fmt"
-	"github.com/cznic/kv"
 	"github.com/henrylee2cn/wukong/core"
+	"github.com/henrylee2cn/wukong/storage"
 	"github.com/henrylee2cn/wukong/types"
 	"github.com/henrylee2cn/wukong/utils"
-	// "github.com/huichen/murmur"
 	"github.com/huichen/sego"
 	"log"
 	"os"
@@ -36,9 +35,9 @@ type Engine struct {
 
 	indexers   map[uint64]*core.Indexer
 	rankers    map[uint64]*core.Ranker
+	dbs        map[uint64]storage.Storage
 	segmenter  sego.Segmenter
 	stopTokens StopTokens
-	dbs        map[uint64]*kv.DB
 
 	// 建立索引器使用的通信通道
 	segmenterChannel               chan segmenterRequest
@@ -115,7 +114,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		}
 
 		// 打开或者创建数据库
-		engine.dbs = make(map[uint64]*kv.DB, numShards)
+		engine.dbs = make(map[uint64]storage.Storage, numShards)
 	}
 
 	if numShards == 0 {
@@ -156,7 +155,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	if options.UsePersistentStorage {
 		for _, shard := range options.Shards {
 			dbPath := options.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.FormatUint(shard, 10)
-			db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
+			db, err := storage.OpenStorage(dbPath, engine.initOptions.PersistentStorageEngine)
 			if db == nil || err != nil {
 				log.Fatal("无法打开数据库", dbPath, ": ", err)
 			}
@@ -180,6 +179,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 			}
 		}
 
+		// 启动数据库实时写入协程
 		for _, shard := range options.Shards {
 			go engine.persistentStorageIndexDocumentWorker(shard)
 		}
@@ -429,7 +429,7 @@ func (engine *Engine) appendRoutine(shard uint64) {
 	if engine.initOptions.UsePersistentStorage {
 		// 打开或者创建数据库
 		dbPath := engine.initOptions.PersistentStorageFolder + "/" + PersistentStorageFilePrefix + "." + strconv.FormatUint(shard, 10)
-		db, err := utils.OpenOrCreateKv(dbPath, &kv.Options{})
+		db, err := storage.OpenStorage(dbPath, engine.initOptions.PersistentStorageEngine)
 		if db == nil || err != nil {
 			log.Fatal("无法打开数据库", dbPath, ": ", err)
 		}
@@ -448,6 +448,7 @@ func (engine *Engine) appendRoutine(shard uint64) {
 			}
 		}
 
+		// 从数据库初始化索引文档
 		go engine.persistentStorageIndexDocumentWorker(shard)
 	}
 }

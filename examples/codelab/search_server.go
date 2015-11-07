@@ -24,8 +24,12 @@ const (
 )
 
 var (
-	searcher = engine.Engine{}
-	wbs      = map[string]Weibo{}
+	searcher      = engine.Engine{}
+	wbs           = map[string]Weibo{}
+	weiboData     = flag.String("weibo_data", "../../testdata/weibo_data.txt", "微博数据文件")
+	dictFile      = flag.String("dict_file", "../../data/dictionary.txt", "词典文件")
+	stopTokenFile = flag.String("stop_token_file", "../../data/stop_tokens.txt", "停用词文件")
+	staticFolder  = flag.String("static_folder", "static", "静态文件目录")
 )
 
 type Weibo struct {
@@ -41,7 +45,7 @@ type Weibo struct {
 *******************************************************************************/
 func indexWeibo() {
 	// 读入微博数据
-	file, err := os.Open("../../testdata/weibo_data.txt")
+	file, err := os.Open(*weiboData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,7 +73,7 @@ func indexWeibo() {
 				Timestamp:    weibo.Timestamp,
 				RepostsCount: weibo.RepostsCount,
 			},
-		}, 3)
+		}, 12638153115695167471)
 	}
 
 	searcher.FlushIndex()
@@ -120,9 +124,11 @@ func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 			OutputOffset:    0,
 			MaxOutputs:      100,
 		},
+		// 分片为空时，搜索全部分片
 		Shards: []uint64{},
 	})
 
+	log.Println("jieguo", output)
 	// 整理为输出格式
 	docs := []*Weibo{}
 	for _, doc := range output.Docs {
@@ -147,21 +153,28 @@ func main() {
 
 	// 初始化
 	gob.Register(WeiboScoringFields{})
+	log.Print("引擎开始初始化")
 	searcher.Init(types.EngineInitOptions{
-		SegmenterDictionaries: "../../data/dictionary.txt",
-		StopTokenFile:         "../../data/stop_tokens.txt",
+		SegmenterDictionaries: *dictFile,
+		StopTokenFile:         *stopTokenFile,
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		// 如果你希望使用持久存储，启用下面的选项
+		// 默认使用boltdb持久化
 		UsePersistentStorage:    true,
-		PersistentStorageFolder: "db",
-		Shards:                  []uint64{0, 1},
+		PersistentStorageFolder: "weibo_search",
+		PersistentStorageEngine: "kv", //或"boltdb"
+		// 初始化指定的分片，可为空
+		// Shards: []uint64{12638153115695167471},
 	})
+	log.Print("引擎初始化完毕")
 	wbs = make(map[string]Weibo)
-	log.Printf("添加索引完成\n")
 
 	// 索引
+	log.Print("建索引开始")
 	go indexWeibo()
+	log.Print("建索引完毕")
 
 	// 捕获ctrl-c
 	c := make(chan os.Signal, 1)
@@ -175,7 +188,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/json", JsonRpcServer)
-	http.Handle("/", http.FileServer(http.Dir("static")))
+	http.Handle("/", http.FileServer(http.Dir(*staticFolder)))
 	log.Print("服务器启动")
 	http.ListenAndServe(":8080", nil)
 }

@@ -58,9 +58,10 @@ type EngineInitOptions struct {
 	// 默认的搜索选项
 	DefaultRankOptions *RankOptions
 
-	// 是否使用持久数据库，以及数据库文件保存的目录和裂分数目
+	// 是否使用持久数据库，以及数据库文件保存目录和数据库引擎
 	UsePersistentStorage    bool
 	PersistentStorageFolder string
+	PersistentStorageEngine string
 }
 
 // 初始化EngineInitOptions，当用户未设定某个选项的值时用默认值取代
@@ -68,10 +69,6 @@ func (options *EngineInitOptions) Init() {
 	if options.SegmenterDictionaries == "" {
 		log.Fatal("字典文件不能为空")
 	}
-
-	// if len(options.Shards) == 0 {
-	// 	log.Fatal("分片不能为空")
-	// }
 
 	if options.NumSegmenterThreads == 0 {
 		options.NumSegmenterThreads = defaultNumSegmenterThreads
