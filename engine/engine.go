@@ -381,6 +381,18 @@ func (engine *Engine) Close() {
 	}
 }
 
+// 只分词与过滤弃用词
+func (engine *Engine) Segment() (keywords []string) {
+	segments := engine.segmenter.Segment([]byte(request.data.Content))
+	for _, segment := range segments {
+		token := segment.Token().Text()
+		if !engine.stopTokens.IsStopToken(token) {
+			keywords = append(keywords, token)
+		}
+	}
+	return
+}
+
 // 动态追加工作协程及数据库
 func (engine *Engine) appendRoutine(shard uint64) {
 	engine.Mutex.Lock()
