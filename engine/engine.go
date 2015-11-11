@@ -382,8 +382,8 @@ func (engine *Engine) Close() {
 }
 
 // 只分词与过滤弃用词
-func (engine *Engine) Segment() (keywords []string) {
-	segments := engine.segmenter.Segment([]byte(request.data.Content))
+func (engine *Engine) Segment(content string) (keywords []string) {
+	segments := engine.segmenter.Segment([]byte(content))
 	for _, segment := range segments {
 		token := segment.Token().Text()
 		if !engine.stopTokens.IsStopToken(token) {
