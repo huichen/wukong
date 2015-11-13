@@ -97,7 +97,12 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 
 		// 等待通道关闭
 		for range request.documentIndexChan {
-			runtime.Gosched()
+			// 获取任意一个信号，终止当前索引任务
+			// 清除记录
+			if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
+				delete(documentIndexChanCount, request.documentIndexChan)
+			}
+			return
 		}
 
 		// 清除记录
