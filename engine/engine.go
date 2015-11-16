@@ -37,7 +37,7 @@ type Engine struct {
 	rankers    []core.Ranker
 	segmenter  sego.Segmenter
 	stopTokens StopTokens
-	dbs []storage.Storage
+	dbs        []storage.Storage
 
 	// 建立索引器使用的通信通道
 	segmenterChannel               chan segmenterRequest
@@ -66,11 +66,13 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	engine.initOptions = options
 	engine.initialized = true
 
-	// 载入分词器词典
-	engine.segmenter.LoadDictionary(options.SegmenterDictionaries)
+	if !options.NotUsingSegmenter {
+		// 载入分词器词典
+		engine.segmenter.LoadDictionary(options.SegmenterDictionaries)
 
-	// 初始化停用词
-	engine.stopTokens.Init(options.StopTokenFile)
+		// 初始化停用词
+		engine.stopTokens.Init(options.StopTokenFile)
+	}
 
 	// 初始化索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
