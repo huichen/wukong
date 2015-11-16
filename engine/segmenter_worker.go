@@ -37,12 +37,14 @@ func (engine *Engine) segmenterWorker() {
 			numTokens = len(request.data.Tokens)
 		}
 
-		if !engine.initOptions.NotUsingSegmenter {
-			// 加入非分词的文档标签
-			for _, label := range request.data.Labels {
+		// 加入非分词的文档标签
+		for _, label := range request.data.Labels {
+			if !engine.initOptions.NotUsingSegmenter {
 				if !engine.stopTokens.IsStopToken(label) {
 					tokensMap[label] = []int{}
 				}
+			} else {
+				tokensMap[label] = []int{}
 			}
 		}
 
