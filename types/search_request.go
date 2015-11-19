@@ -24,6 +24,10 @@ type SearchRequest struct {
 
 	// 设为true时仅统计搜索到的文档个数，不返回具体的文档
 	CountDocsOnly bool
+
+	// 不排序，对于可在引擎外部（比如客户端）排序情况适用
+	// 对返回文档很多的情况打开此选项可以有效节省时间
+	Orderless bool
 }
 
 type RankOptions struct {

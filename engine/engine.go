@@ -313,6 +313,7 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 		docIds:              request.DocIds,
 		options:             rankOptions,
 		rankerReturnChannel: rankerReturnChannel,
+		orderless:           request.Orderless,
 	}
 
 	// 向索引器发送查找请求
@@ -356,7 +357,7 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 	}
 
 	// 再排序
-	if !request.CountDocsOnly {
+	if !request.CountDocsOnly && !request.Orderless {
 		if rankOptions.ReverseOrder {
 			sort.Sort(sort.Reverse(rankOutput))
 		} else {
@@ -366,7 +367,9 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 
 	// 准备输出
 	output.Tokens = tokens
-	if !request.CountDocsOnly {
+	if !request.Orderless {
+		output.Docs = rankOutput
+	} else if !request.CountDocsOnly {
 		var start, end int
 		if rankOptions.MaxOutputs == 0 {
 			start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
