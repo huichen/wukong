@@ -40,14 +40,14 @@ type Engine struct {
 	dbs        []storage.Storage
 
 	// 建立索引器使用的通信通道
-	segmenterChannel               chan segmenterRequest
-	indexerAddDocumentChannels     []chan indexerAddDocumentRequest
-	rankerAddScoringFieldsChannels []chan rankerAddScoringFieldsRequest
+	segmenterChannel           chan segmenterRequest
+	indexerAddDocumentChannels []chan indexerAddDocumentRequest
+	rankerAddDocChannels       []chan rankerAddDocRequest
 
 	// 建立排序器使用的通信通道
-	indexerLookupChannels             []chan indexerLookupRequest
-	rankerRankChannels                []chan rankerRankRequest
-	rankerRemoveScoringFieldsChannels []chan rankerRemoveScoringFieldsRequest
+	indexerLookupChannels   []chan indexerLookupRequest
+	rankerRankChannels      []chan rankerRankRequest
+	rankerRemoveDocChannels []chan rankerRemoveDocRequest
 
 	// 建立持久存储使用的通信通道
 	persistentStorageIndexDocumentChannels []chan persistentStorageIndexDocumentRequest
@@ -102,21 +102,21 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	}
 
 	// 初始化排序器通道
-	engine.rankerAddScoringFieldsChannels = make(
-		[]chan rankerAddScoringFieldsRequest, options.NumShards)
+	engine.rankerAddDocChannels = make(
+		[]chan rankerAddDocRequest, options.NumShards)
 	engine.rankerRankChannels = make(
 		[]chan rankerRankRequest, options.NumShards)
-	engine.rankerRemoveScoringFieldsChannels = make(
-		[]chan rankerRemoveScoringFieldsRequest, options.NumShards)
+	engine.rankerRemoveDocChannels = make(
+		[]chan rankerRemoveDocRequest, options.NumShards)
 	for shard := 0; shard < options.NumShards; shard++ {
-		engine.rankerAddScoringFieldsChannels[shard] = make(
-			chan rankerAddScoringFieldsRequest,
+		engine.rankerAddDocChannels[shard] = make(
+			chan rankerAddDocRequest,
 			options.RankerBufferLength)
 		engine.rankerRankChannels[shard] = make(
 			chan rankerRankRequest,
 			options.RankerBufferLength)
-		engine.rankerRemoveScoringFieldsChannels[shard] = make(
-			chan rankerRemoveScoringFieldsRequest,
+		engine.rankerRemoveDocChannels[shard] = make(
+			chan rankerRemoveDocRequest,
 			options.RankerBufferLength)
 	}
 
@@ -141,8 +141,8 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	// 启动索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
 		go engine.indexerAddDocumentWorker(shard)
-		go engine.rankerAddScoringFieldsWorker(shard)
-		go engine.rankerRemoveScoringFieldsWorker(shard)
+		go engine.rankerAddDocWorker(shard)
+		go engine.rankerRemoveDocWorker(shard)
 
 		for i := 0; i < options.NumIndexerThreadsPerShard; i++ {
 			go engine.indexerLookupWorker(shard)
@@ -240,15 +240,14 @@ func (engine *Engine) internalIndexDocument(docId uint64, data types.DocumentInd
 // 输入参数：
 // 	docId	标识文档编号，必须唯一
 //
-// 注意：这个函数仅从排序器中删除文档的自定义评分字段，索引器不会发生变化。所以
-// 你的自定义评分字段必须能够区别评分字段为nil的情况，并将其从排序结果中删除。
+// 注意：这个函数仅从排序器中删除文档，索引器不会发生变化。
 func (engine *Engine) RemoveDocument(docId uint64) {
 	if !engine.initialized {
 		log.Fatal("必须先初始化引擎")
 	}
 
 	for shard := 0; shard < engine.initOptions.NumShards; shard++ {
-		engine.rankerRemoveScoringFieldsChannels[shard] <- rankerRemoveScoringFieldsRequest{docId: docId}
+		engine.rankerRemoveDocChannels[shard] <- rankerRemoveDocRequest{docId: docId}
 	}
 
 	if engine.initOptions.UsePersistentStorage {
@@ -308,11 +307,13 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 
 	// 生成查找请求
 	lookupRequest := indexerLookupRequest{
+		countDocsOnly:       request.CountDocsOnly,
 		tokens:              tokens,
 		labels:              request.Labels,
 		docIds:              request.DocIds,
 		options:             rankOptions,
-		rankerReturnChannel: rankerReturnChannel}
+		rankerReturnChannel: rankerReturnChannel,
+	}
 
 	// 向索引器发送查找请求
 	for shard := 0; shard < engine.initOptions.NumShards; shard++ {
@@ -320,6 +321,7 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 	}
 
 	// 从通信通道读取排序器的输出
+	numDocs := 0
 	rankOutput := types.ScoredDocuments{}
 	timeout := request.Timeout
 	isTimeout := false
@@ -327,9 +329,12 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 		// 不设置超时
 		for shard := 0; shard < engine.initOptions.NumShards; shard++ {
 			rankerOutput := <-rankerReturnChannel
-			for _, doc := range rankerOutput.docs {
-				rankOutput = append(rankOutput, doc)
+			if !request.CountDocsOnly {
+				for _, doc := range rankerOutput.docs {
+					rankOutput = append(rankOutput, doc)
+				}
 			}
+			numDocs += rankerOutput.numDocs
 		}
 	} else {
 		// 设置超时
@@ -337,9 +342,12 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 		for shard := 0; shard < engine.initOptions.NumShards; shard++ {
 			select {
 			case rankerOutput := <-rankerReturnChannel:
-				for _, doc := range rankerOutput.docs {
-					rankOutput = append(rankOutput, doc)
+				if !request.CountDocsOnly {
+					for _, doc := range rankerOutput.docs {
+						rankOutput = append(rankOutput, doc)
+					}
 				}
+				numDocs += rankerOutput.numDocs
 			case <-time.After(deadline.Sub(time.Now())):
 				isTimeout = true
 				break
@@ -348,23 +356,28 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 	}
 
 	// 再排序
-	if rankOptions.ReverseOrder {
-		sort.Sort(sort.Reverse(rankOutput))
-	} else {
-		sort.Sort(rankOutput)
+	if !request.CountDocsOnly {
+		if rankOptions.ReverseOrder {
+			sort.Sort(sort.Reverse(rankOutput))
+		} else {
+			sort.Sort(rankOutput)
+		}
 	}
 
 	// 准备输出
 	output.Tokens = tokens
-	var start, end int
-	if rankOptions.MaxOutputs == 0 {
-		start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
-		end = len(rankOutput)
-	} else {
-		start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
-		end = utils.MinInt(start+rankOptions.MaxOutputs, len(rankOutput))
+	if !request.CountDocsOnly {
+		var start, end int
+		if rankOptions.MaxOutputs == 0 {
+			start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
+			end = len(rankOutput)
+		} else {
+			start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
+			end = utils.MinInt(start+rankOptions.MaxOutputs, len(rankOutput))
+		}
+		output.Docs = rankOutput[start:end]
 	}
-	output.Docs = rankOutput[start:end]
+	output.NumDocs = numDocs
 	output.Timeout = isTimeout
 	return
 }

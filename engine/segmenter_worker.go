@@ -65,8 +65,8 @@ func (engine *Engine) segmenterWorker() {
 			iTokens++
 		}
 		engine.indexerAddDocumentChannels[shard] <- indexerRequest
-		rankerRequest := rankerAddScoringFieldsRequest{
+		rankerRequest := rankerAddDocRequest{
 			docId: request.docId, fields: request.data.Fields}
-		engine.rankerAddScoringFieldsChannels[shard] <- rankerRequest
+		engine.rankerAddDocChannels[shard] <- rankerRequest
 	}
 }

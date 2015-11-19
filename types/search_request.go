@@ -21,6 +21,9 @@ type SearchRequest struct {
 	// 超时，单位毫秒（千分之一秒）。此值小于等于零时不设超时。
 	// 搜索超时的情况下仍有可能返回部分排序结果。
 	Timeout int
+
+	// 设为true时仅统计搜索到的文档个数，不返回具体的文档
+	CountDocsOnly bool
 }
 
 type RankOptions struct {

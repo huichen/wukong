@@ -10,6 +10,7 @@ type indexerAddDocumentRequest struct {
 }
 
 type indexerLookupRequest struct {
+	countDocsOnly       bool
 	tokens              []string
 	labels              []string
 	docIds              []uint64
@@ -48,9 +49,11 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 		}
 
 		rankerRequest := rankerRankRequest{
+			countDocsOnly:       request.countDocsOnly,
 			docs:                docs,
 			options:             request.options,
-			rankerReturnChannel: request.rankerReturnChannel}
+			rankerReturnChannel: request.rankerReturnChannel,
+		}
 		engine.rankerRankChannels[shard] <- rankerRequest
 	}
 }

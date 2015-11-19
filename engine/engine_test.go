@@ -362,3 +362,27 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 	engine1.Close()
 	os.RemoveAll("wukong.persistent")
 }
+
+func TestCountDocsOnly(t *testing.T) {
+	var engine Engine
+	engine.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			ReverseOrder:    true,
+			OutputOffset:    0,
+			MaxOutputs:      1,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+	})
+
+	AddDocs(&engine)
+	engine.RemoveDocument(4)
+
+	outputs := engine.Search(types.SearchRequest{Text: "中国人口", CountDocsOnly: true})
+	utils.Expect(t, "0", len(outputs.Docs))
+	utils.Expect(t, "2", len(outputs.Tokens))
+	utils.Expect(t, "2", outputs.NumDocs)
+}

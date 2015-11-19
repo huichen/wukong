@@ -4,7 +4,7 @@ import (
 	"github.com/huichen/wukong/types"
 )
 
-type rankerAddScoringFieldsRequest struct {
+type rankerAddDocRequest struct {
 	docId  uint64
 	fields interface{}
 }
@@ -13,20 +13,22 @@ type rankerRankRequest struct {
 	docs                []types.IndexedDocument
 	options             types.RankOptions
 	rankerReturnChannel chan rankerReturnRequest
+	countDocsOnly       bool
 }
 
 type rankerReturnRequest struct {
-	docs types.ScoredDocuments
+	docs    types.ScoredDocuments
+	numDocs int
 }
 
-type rankerRemoveScoringFieldsRequest struct {
+type rankerRemoveDocRequest struct {
 	docId uint64
 }
 
-func (engine *Engine) rankerAddScoringFieldsWorker(shard int) {
+func (engine *Engine) rankerAddDocWorker(shard int) {
 	for {
-		request := <-engine.rankerAddScoringFieldsChannels[shard]
-		engine.rankers[shard].AddScoringFields(request.docId, request.fields)
+		request := <-engine.rankerAddDocChannels[shard]
+		engine.rankers[shard].AddDoc(request.docId, request.fields)
 	}
 }
 
@@ -37,14 +39,14 @@ func (engine *Engine) rankerRankWorker(shard int) {
 			request.options.MaxOutputs += request.options.OutputOffset
 		}
 		request.options.OutputOffset = 0
-		outputDocs := engine.rankers[shard].Rank(request.docs, request.options)
-		request.rankerReturnChannel <- rankerReturnRequest{docs: outputDocs}
+		outputDocs, numDocs := engine.rankers[shard].Rank(request.docs, request.options, request.countDocsOnly)
+		request.rankerReturnChannel <- rankerReturnRequest{docs: outputDocs, numDocs: numDocs}
 	}
 }
 
-func (engine *Engine) rankerRemoveScoringFieldsWorker(shard int) {
+func (engine *Engine) rankerRemoveDocWorker(shard int) {
 	for {
-		request := <-engine.rankerRemoveScoringFieldsChannels[shard]
-		engine.rankers[shard].RemoveScoringFields(request.docId)
+		request := <-engine.rankerRemoveDocChannels[shard]
+		engine.rankers[shard].RemoveDoc(request.docId)
 	}
 }
