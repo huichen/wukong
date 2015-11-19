@@ -351,7 +351,7 @@ func TestLookupWithinDocIds(t *testing.T) {
 	docIds[0] = true
 	docIds[2] = true
 	utils.Expect(t, "[2 0 [7]] [0 0 [0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2"}, []string{}, &docIds)))
+		indexedDocsToString(indexer.Lookup([]string{"token2"}, []string{}, docIds)))
 }
 
 func TestLookupWithLocations(t *testing.T) {

@@ -12,8 +12,8 @@ type SearchRequest struct {
 	// 文档标签（必须是UTF-8格式），标签不存在文档文本中，但也属于搜索键的一种
 	Labels []string
 
-	// 当不为空时，仅从这些文档中搜索
-	DocIds []uint64
+	// 当不为nil时，仅从这些DocIds包含的键中搜索（忽略值）
+	DocIds map[uint64]bool
 
 	// 排序选项
 	RankOptions *RankOptions

@@ -128,7 +128,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
 func (indexer *Indexer) Lookup(
-	tokens []string, labels []string, docIds *map[uint64]bool) (docs []types.IndexedDocument) {
+	tokens []string, labels []string, docIds map[uint64]bool) (docs []types.IndexedDocument) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
@@ -174,7 +174,7 @@ func (indexer *Indexer) Lookup(
 		baseDocId := indexer.getDocId(table[0], indexPointers[0])
 
 		if docIds != nil {
-			_, found := (*docIds)[baseDocId]
+			_, found := docIds[baseDocId]
 			if !found {
 				continue
 			}

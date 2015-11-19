@@ -13,7 +13,7 @@ type indexerLookupRequest struct {
 	countDocsOnly       bool
 	tokens              []string
 	labels              []string
-	docIds              []uint64
+	docIds              map[uint64]bool
 	options             types.RankOptions
 	rankerReturnChannel chan rankerReturnRequest
 }
@@ -33,14 +33,10 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 		request := <-engine.indexerLookupChannels[shard]
 
 		var docs []types.IndexedDocument
-		if len(request.docIds) == 0 {
+		if request.docIds == nil {
 			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil)
 		} else {
-			docIds := make(map[uint64]bool)
-			for _, ids := range request.docIds {
-				docIds[ids] = true
-			}
-			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, &docIds)
+			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, request.docIds)
 		}
 
 		if len(docs) == 0 {
