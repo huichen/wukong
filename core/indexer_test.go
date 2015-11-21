@@ -101,29 +101,29 @@ func TestLookup(t *testing.T) {
 	utils.Expect(t, "0 1 2 3 ", indicesToString(&indexer, "token2"))
 	utils.Expect(t, "0 1 7 9 ", indicesToString(&indexer, "token3"))
 
-	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token4"}, []string{}, nil)))
+	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token4"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[7 0 [0]] [2 0 [0]] [1 0 [0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1"}, []string{}, nil)))
-	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token1", "token4"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1"}, []string{}, nil, false)))
+	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token1", "token4"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[2 1 [0 7]] [1 1 [0 7]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token2"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token2"}, []string{}, nil, false)))
 	utils.Expect(t, "[2 13 [7 0]] [1 13 [7 0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token1"}, []string{}, nil, false)))
 	utils.Expect(t, "[7 1 [0 7]] [1 8 [0 14]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[7 13 [7 0]] [1 20 [14 0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token1"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 1 [7 14]] [0 1 [0 7]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 13 [14 7]] [0 13 [7 0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token2"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token2"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[1 2 [0 7 14]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token2", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token2", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 26 [14 7 0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token2", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token2", "token1"}, []string{}, nil, false)))
 }
 
 func TestDocIdsIndex(t *testing.T) {
@@ -181,29 +181,29 @@ func TestDocIdsIndex(t *testing.T) {
 	utils.Expect(t, "0 1 2 3 ", indicesToString(&indexer, "token2"))
 	utils.Expect(t, "0 1 7 9 ", indicesToString(&indexer, "token3"))
 
-	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token4"}, []string{}, nil)))
+	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token4"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[7 0 []] [2 0 []] [1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1"}, []string{}, nil)))
-	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token1", "token4"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1"}, []string{}, nil, false)))
+	utils.Expect(t, "", indexedDocsToString(indexer.Lookup([]string{"token1", "token4"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[2 0 []] [1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token2"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token2"}, []string{}, nil, false)))
 	utils.Expect(t, "[2 0 []] [1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token1"}, []string{}, nil, false)))
 	utils.Expect(t, "[7 0 []] [1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[7 0 []] [1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token1"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 0 []] [0 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 0 []] [0 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token2"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token2"}, []string{}, nil, false)))
 
 	utils.Expect(t, "[1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token1", "token2", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token1", "token2", "token3"}, []string{}, nil, false)))
 	utils.Expect(t, "[1 0 []] ",
-		indexedDocsToString(indexer.Lookup([]string{"token3", "token2", "token1"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token3", "token2", "token1"}, []string{}, nil, false)))
 }
 
 func TestLookupWithProximity(t *testing.T) {
@@ -220,7 +220,7 @@ func TestLookupWithProximity(t *testing.T) {
 		},
 	})
 	utils.Expect(t, "[0 1 [21 28]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)))
 
 	// doc0 = "t2 t1 . . . t2 t3"
 	indexer.AddDocument(&types.DocumentIndex{
@@ -232,7 +232,7 @@ func TestLookupWithProximity(t *testing.T) {
 		},
 	})
 	utils.Expect(t, "[0 8 [3 12 15]] ",
-		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil, false)))
 
 	// doc0 = "t3 t2 t1 . . . . . t2 t3"
 	indexer.AddDocument(&types.DocumentIndex{
@@ -244,7 +244,7 @@ func TestLookupWithProximity(t *testing.T) {
 		},
 	})
 	utils.Expect(t, "[0 10 [6 3 0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"t1", "t2", "t3"}, []string{}, nil, false)))
 }
 
 func TestLookupWithPartialLocations(t *testing.T) {
@@ -273,7 +273,7 @@ func TestLookupWithPartialLocations(t *testing.T) {
 	utils.Expect(t, "0 ", indicesToString(&indexer, "label1"))
 
 	utils.Expect(t, "[0 1 [21 28]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{"label1"}, nil)))
+		indexedDocsToString(indexer.Lookup([]string{"token2", "token3"}, []string{"label1"}, nil, false)))
 }
 
 func TestLookupWithBM25(t *testing.T) {
@@ -305,7 +305,7 @@ func TestLookupWithBM25(t *testing.T) {
 		},
 	})
 
-	outputs := indexer.Lookup([]string{"token2", "token3", "token4"}, []string{}, nil)
+	outputs, _ := indexer.Lookup([]string{"token2", "token3", "token4"}, []string{}, nil, false)
 
 	// BM25 = log2(3) * (12/9 + 28/17 + 60/33) = 6.3433
 	utils.Expect(t, "76055", int(outputs[0].BM25*10000))
@@ -351,7 +351,7 @@ func TestLookupWithinDocIds(t *testing.T) {
 	docIds[0] = true
 	docIds[2] = true
 	utils.Expect(t, "[2 0 [7]] [0 0 [0]] ",
-		indexedDocsToString(indexer.Lookup([]string{"token2"}, []string{}, docIds)))
+		indexedDocsToString(indexer.Lookup([]string{"token2"}, []string{}, docIds, false)))
 }
 
 func TestLookupWithLocations(t *testing.T) {
@@ -367,6 +367,6 @@ func TestLookupWithLocations(t *testing.T) {
 		},
 	})
 
-	utils.Expect(t, "[[0 21] [28]]",
-		indexer.Lookup([]string{"token2", "token3"}, []string{}, nil)[0].TokenLocations)
+	docs, _ := indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)
+	utils.Expect(t, "[[0 21] [28]]", docs[0].TokenLocations)
 }

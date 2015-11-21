@@ -19,6 +19,10 @@ type indexerLookupRequest struct {
 	orderless           bool
 }
 
+type indexerRemoveDocRequest struct {
+	docId uint64
+}
+
 func (engine *Engine) indexerAddDocumentWorker(shard int) {
 	for {
 		request := <-engine.indexerAddDocumentChannels[shard]
@@ -34,10 +38,16 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 		request := <-engine.indexerLookupChannels[shard]
 
 		var docs []types.IndexedDocument
+		var numDocs int
 		if request.docIds == nil {
-			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil)
+			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil, request.countDocsOnly)
 		} else {
-			docs = engine.indexers[shard].Lookup(request.tokens, request.labels, request.docIds)
+			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, request.docIds, request.countDocsOnly)
+		}
+
+		if request.countDocsOnly {
+			request.rankerReturnChannel <- rankerReturnRequest{numDocs: numDocs}
+			return
 		}
 
 		if len(docs) == 0 {
@@ -67,5 +77,12 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 			rankerReturnChannel: request.rankerReturnChannel,
 		}
 		engine.rankerRankChannels[shard] <- rankerRequest
+	}
+}
+
+func (engine *Engine) indexerRemoveDocWorker(shard int) {
+	for {
+		request := <-engine.indexerRemoveDocChannels[shard]
+		engine.indexers[shard].RemoveDoc(request.docId)
 	}
 }

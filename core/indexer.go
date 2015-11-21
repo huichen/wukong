@@ -15,6 +15,7 @@ type Indexer struct {
 	tableLock struct {
 		sync.RWMutex
 		table map[string]*KeywordIndices
+		docs  map[uint64]bool
 	}
 
 	initOptions types.IndexerInitOptions
@@ -46,6 +47,7 @@ func (indexer *Indexer) Init(options types.IndexerInitOptions) {
 	indexer.initialized = true
 
 	indexer.tableLock.table = make(map[string]*KeywordIndices)
+	indexer.tableLock.docs = make(map[uint64]bool)
 	indexer.initOptions = options
 	indexer.docTokenLengths = make(map[uint64]float32)
 }
@@ -121,6 +123,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 
 	// 更新文章总数
 	if docIdIsNew {
+		indexer.tableLock.docs[document.DocId] = true
 		indexer.numDocuments++
 	}
 }
@@ -128,7 +131,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
 func (indexer *Indexer) Lookup(
-	tokens []string, labels []string, docIds map[uint64]bool) (docs []types.IndexedDocument) {
+	tokens []string, labels []string, docIds map[uint64]bool, countDocsOnly bool) (docs []types.IndexedDocument, numDocs int) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
@@ -136,6 +139,7 @@ func (indexer *Indexer) Lookup(
 	if indexer.numDocuments == 0 {
 		return
 	}
+	numDocs = 0
 
 	// 合并关键词和标签为搜索键
 	keywords := make([]string, len(tokens)+len(labels))
@@ -204,7 +208,8 @@ func (indexer *Indexer) Lookup(
 			}
 		}
 
-		if found {
+		_, ok := indexer.tableLock.docs[baseDocId]
+		if found && ok {
 			indexedDoc := types.IndexedDocument{}
 
 			// 当为LocationsIndex时计算关键词紧邻距离
@@ -217,9 +222,12 @@ func (indexer *Indexer) Lookup(
 					}
 				}
 				if numTokensWithLocations != len(tokens) {
-					docs = append(docs, types.IndexedDocument{
-						DocId: baseDocId,
-					})
+					if !countDocsOnly {
+						docs = append(docs, types.IndexedDocument{
+							DocId: baseDocId,
+						})
+					}
+					numDocs++
 					break
 				}
 
@@ -261,7 +269,10 @@ func (indexer *Indexer) Lookup(
 			}
 
 			indexedDoc.DocId = baseDocId
-			docs = append(docs, indexedDoc)
+			if !countDocsOnly {
+				docs = append(docs, indexedDoc)
+			}
+			numDocs++
 		}
 	}
 	return
@@ -397,4 +408,15 @@ func (indexer *Indexer) getDocId(ti *KeywordIndices, i int) uint64 {
 // 得到KeywordIndices中文档总数
 func (indexer *Indexer) getIndexLength(ti *KeywordIndices) int {
 	return len(ti.docIds)
+}
+
+// 删除某个文档
+func (indexer *Indexer) RemoveDoc(docId uint64) {
+	if indexer.initialized == false {
+		log.Fatal("排序器尚未初始化")
+	}
+
+	indexer.tableLock.Lock()
+	delete(indexer.tableLock.docs, docId)
+	indexer.tableLock.Unlock()
 }

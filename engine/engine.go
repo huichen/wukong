@@ -42,6 +42,7 @@ type Engine struct {
 	// 建立索引器使用的通信通道
 	segmenterChannel           chan segmenterRequest
 	indexerAddDocumentChannels []chan indexerAddDocumentRequest
+	indexerRemoveDocChannels   []chan indexerRemoveDocRequest
 	rankerAddDocChannels       []chan rankerAddDocRequest
 
 	// 建立排序器使用的通信通道
@@ -90,11 +91,16 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	// 初始化索引器通道
 	engine.indexerAddDocumentChannels = make(
 		[]chan indexerAddDocumentRequest, options.NumShards)
+	engine.indexerRemoveDocChannels = make(
+		[]chan indexerRemoveDocRequest, options.NumShards)
 	engine.indexerLookupChannels = make(
 		[]chan indexerLookupRequest, options.NumShards)
 	for shard := 0; shard < options.NumShards; shard++ {
 		engine.indexerAddDocumentChannels[shard] = make(
 			chan indexerAddDocumentRequest,
+			options.IndexerBufferLength)
+		engine.indexerRemoveDocChannels[shard] = make(
+			chan indexerRemoveDocRequest,
 			options.IndexerBufferLength)
 		engine.indexerLookupChannels[shard] = make(
 			chan indexerLookupRequest,
@@ -141,6 +147,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 	// 启动索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
 		go engine.indexerAddDocumentWorker(shard)
+		go engine.indexerRemoveDocWorker(shard)
 		go engine.rankerAddDocWorker(shard)
 		go engine.rankerRemoveDocWorker(shard)
 
@@ -247,6 +254,7 @@ func (engine *Engine) RemoveDocument(docId uint64) {
 	}
 
 	for shard := 0; shard < engine.initOptions.NumShards; shard++ {
+		engine.indexerRemoveDocChannels[shard] <- indexerRemoveDocRequest{docId: docId}
 		engine.rankerRemoveDocChannels[shard] <- rankerRemoveDocRequest{docId: docId}
 	}
 
@@ -367,18 +375,22 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 
 	// 准备输出
 	output.Tokens = tokens
-	if !request.Orderless {
-		output.Docs = rankOutput
-	} else if !request.CountDocsOnly {
-		var start, end int
-		if rankOptions.MaxOutputs == 0 {
-			start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
-			end = len(rankOutput)
+	// 仅当CountDocsOnly为false时才充填output.Docs
+	if !request.CountDocsOnly {
+		if request.Orderless {
+			// 无序状态无需对Offset截断
+			output.Docs = rankOutput
 		} else {
-			start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
-			end = utils.MinInt(start+rankOptions.MaxOutputs, len(rankOutput))
+			var start, end int
+			if rankOptions.MaxOutputs == 0 {
+				start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
+				end = len(rankOutput)
+			} else {
+				start = utils.MinInt(rankOptions.OutputOffset, len(rankOutput))
+				end = utils.MinInt(start+rankOptions.MaxOutputs, len(rankOutput))
+			}
+			output.Docs = rankOutput[start:end]
 		}
-		output.Docs = rankOutput[start:end]
 	}
 	output.NumDocs = numDocs
 	output.Timeout = isTimeout
