@@ -143,6 +143,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 
 		// 启动索引器和排序器
 		go engine.indexerAddDocumentWorker(shard)
+		go engine.indexerRemoveDocWorker(shard)
 		go engine.rankerAddDocWorker(shard)
 		go engine.rankerRemoveDocWorker(shard)
 
