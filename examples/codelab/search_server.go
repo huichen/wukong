@@ -164,7 +164,8 @@ func main() {
 		// 默认使用boltdb持久化
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "weibo_search",
-		PersistentStorageEngine: "kv", //或"boltdb"
+		// PersistentStorageEngine: "kv", //或"boltdb"
+		PersistentStorageEngine: "boltdb", //或"boltdb"
 		// 初始化指定的分片，可为空
 		// Shards: []uint64{12638153115695167471},
 	})

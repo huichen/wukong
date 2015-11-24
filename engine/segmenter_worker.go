@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/henrylee2cn/wukong/types"
 	"runtime"
+	"sync/atomic"
 )
 
 type segmenterRequest struct {
@@ -19,7 +20,7 @@ func (engine *Engine) segmenterWorker() {
 
 		tokensMap := make(map[string][]int)
 		numTokens := 0
-		if request.data.Content != "" {
+		if !engine.initOptions.NotUsingSegmenter && request.data.Content != "" {
 			// 当文档正文不为空时，优先从内容分词中得到关键词
 			segments := engine.segmenter.Segment([]byte(request.data.Content))
 			for _, segment := range segments {
@@ -41,7 +42,11 @@ func (engine *Engine) segmenterWorker() {
 
 		// 加入非分词的文档标签
 		for _, label := range request.data.Labels {
-			if !engine.stopTokens.IsStopToken(label) {
+			if !engine.initOptions.NotUsingSegmenter {
+				if !engine.stopTokens.IsStopToken(label) {
+					tokensMap[label] = []int{}
+				}
+			} else {
 				tokensMap[label] = []int{}
 			}
 		}
@@ -102,9 +107,10 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 			if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
 				delete(documentIndexChanCount, request.documentIndexChan)
 			}
+			atomic.AddUint64(&engine.numDocumentsIndexed, 1)
+			atomic.AddUint64(&engine.numDocumentsStored, 1)
 			return
 		}
-
 		// 清除记录
 		if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
 			delete(documentIndexChanCount, request.documentIndexChan)
@@ -113,7 +119,7 @@ func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerReque
 	// 发送至索引器处理
 	engine.indexerAddDocumentChannels[request.shard] <- indexerRequest
 	// 发送至排序器处理
-	engine.rankerAddScoringFieldsChannels[request.shard] <- rankerAddScoringFieldsRequest{
+	engine.rankerAddDocChannels[request.shard] <- rankerAddDocRequest{
 		docId:  request.docId,
 		fields: request.data.Fields,
 	}

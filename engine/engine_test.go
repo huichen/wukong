@@ -248,7 +248,7 @@ func TestRemoveDocument(t *testing.T) {
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument(4, "4")
+	engine.RemoveDocument("4", 4)
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "1", len(outputs.Docs))
@@ -335,7 +335,7 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		Shards:                  []uint64{0, 1, 2, 3, 4},
 	})
 	AddDocs(&engine)
-	engine.RemoveDocument(4, "4")
+	engine.RemoveDocument("4", 4)
 	engine.Close()
 
 	var engine1 Engine
@@ -370,4 +370,66 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 
 	engine1.Close()
 	os.RemoveAll("wukong.persistent")
+}
+
+func TestCountDocsOnly(t *testing.T) {
+	var engine Engine
+	engine.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			ReverseOrder:    true,
+			OutputOffset:    0,
+			MaxOutputs:      1,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+	})
+
+	AddDocs(&engine)
+	engine.RemoveDocument("4")
+
+	outputs := engine.Search(types.SearchRequest{Text: "中国人口", CountDocsOnly: true})
+	utils.Expect(t, "0", len(outputs.Docs))
+	utils.Expect(t, "2", len(outputs.Tokens))
+	utils.Expect(t, "2", outputs.NumDocs)
+}
+
+func TestSearchWithin(t *testing.T) {
+	var engine Engine
+	engine.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../testdata/test_dict.txt",
+		DefaultRankOptions: &types.RankOptions{
+			ReverseOrder:    true,
+			OutputOffset:    0,
+			MaxOutputs:      10,
+			ScoringCriteria: &RankByTokenProximity{},
+		},
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+	})
+
+	AddDocs(&engine)
+
+	docIds := make(map[string]bool)
+	docIds["4"] = true
+	docIds["0"] = true
+	outputs := engine.Search(types.SearchRequest{
+		Text:   "中国人口",
+		DocIds: docIds,
+	})
+	utils.Expect(t, "2", len(outputs.Tokens))
+	utils.Expect(t, "中国", outputs.Tokens[0])
+	utils.Expect(t, "人口", outputs.Tokens[1])
+	utils.Expect(t, "2", len(outputs.Docs))
+
+	utils.Expect(t, "0", outputs.Docs[0].DocId)
+	utils.Expect(t, "76", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "[0 18]", outputs.Docs[0].TokenSnippetLocations)
+
+	utils.Expect(t, "4", outputs.Docs[1].DocId)
+	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
 }

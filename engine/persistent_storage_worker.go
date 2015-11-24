@@ -60,7 +60,7 @@ func (engine *Engine) persistentStorageInitWorker(shard uint64) {
 				document: request.DocumentIndex,
 			}
 			// 发送至排序器处理
-			engine.rankerAddScoringFieldsChannels[shard] <- rankerAddScoringFieldsRequest{
+			engine.rankerAddDocChannels[shard] <- rankerAddDocRequest{
 				docId:  request.DocumentIndex.DocId,
 				fields: request.Fields,
 			}
