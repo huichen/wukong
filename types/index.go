@@ -2,7 +2,7 @@ package types
 
 type DocumentIndex struct {
 	// 文本的DocId
-	DocId string
+	DocId uint64
 
 	// 文本的关键词长
 	TokenLength float32
@@ -25,7 +25,7 @@ type KeywordIndex struct {
 
 // 索引器返回结果
 type IndexedDocument struct {
-	DocId string
+	DocId uint64
 
 	// BM25，仅当索引类型为FrequenciesIndex或者LocationsIndex时返回有效值
 	BM25 float32

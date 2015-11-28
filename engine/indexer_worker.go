@@ -1,39 +1,51 @@
 package engine
 
 import (
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/types"
 	"sync/atomic"
 )
 
 type indexerAddDocumentRequest struct {
-	document *types.DocumentIndex
+	document        *types.DocumentIndex
+	dealDocInfoChan chan<- bool
 }
 
 type indexerLookupRequest struct {
 	countDocsOnly       bool
 	tokens              []string
 	labels              []string
-	docIds              map[string]bool
+	docIds              map[uint64]bool
 	options             types.RankOptions
 	rankerReturnChannel chan rankerReturnRequest
 	orderless           bool
 }
 
 type indexerRemoveDocRequest struct {
-	docId string
+	docId uint64
 }
 
-func (engine *Engine) indexerAddDocumentWorker(shard uint64) {
+func (engine *Engine) indexerAddDocumentWorker(shard int) {
 	for {
 		request := <-engine.indexerAddDocumentChannels[shard]
-		// 加索引至内存
-		engine.indexers[shard].AddDocument(request.document)
-		atomic.AddUint64(&engine.numTokenIndexAdded, uint64(len(request.document.Keywords)))
+		addInvertedIndex := engine.indexers[shard].AddDocument(request.document, request.dealDocInfoChan)
+		// save
+		if engine.initOptions.UsePersistentStorage {
+			for k, v := range addInvertedIndex {
+				engine.persistentStorageIndexDocumentChannels[shard] <- persistentStorageIndexDocumentRequest{
+					typ:            "index",
+					keyword:        k,
+					keywordIndices: v,
+				}
+			}
+		}
+
+		atomic.AddUint64(&engine.numTokenIndexAdded,
+			uint64(len(request.document.Keywords)))
 		atomic.AddUint64(&engine.numDocumentsIndexed, 1)
 	}
 }
 
-func (engine *Engine) indexerLookupWorker(shard uint64) {
+func (engine *Engine) indexerLookupWorker(shard int) {
 	for {
 		request := <-engine.indexerLookupChannels[shard]
 
@@ -80,7 +92,7 @@ func (engine *Engine) indexerLookupWorker(shard uint64) {
 	}
 }
 
-func (engine *Engine) indexerRemoveDocWorker(shard uint64) {
+func (engine *Engine) indexerRemoveDocWorker(shard int) {
 	for {
 		request := <-engine.indexerRemoveDocChannels[shard]
 		engine.indexers[shard].RemoveDoc(request.docId)

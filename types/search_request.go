@@ -1,9 +1,6 @@
 package types
 
 type SearchRequest struct {
-	// 限定搜索在指定Shard范围内，为空时不限定范围
-	Shards []uint64
-
 	// 搜索的短语（必须是UTF-8格式），会被分词
 	// 当值为空字符串时关键词会从下面的Tokens读入
 	Text string
@@ -16,7 +13,7 @@ type SearchRequest struct {
 	Labels []string
 
 	// 当不为nil时，仅从这些DocIds包含的键中搜索（忽略值）
-	DocIds map[string]bool
+	DocIds map[uint64]bool
 
 	// 排序选项
 	RankOptions *RankOptions

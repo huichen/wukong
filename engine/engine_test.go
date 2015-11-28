@@ -2,11 +2,11 @@ package engine
 
 import (
 	"encoding/gob"
-	"github.com/henrylee2cn/wukong/types"
-	"github.com/henrylee2cn/wukong/utils"
+	"github.com/huichen/wukong/core"
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 	"os"
 	"reflect"
-	"strconv"
 	"testing"
 )
 
@@ -15,31 +15,31 @@ type ScoringFields struct {
 }
 
 func AddDocs(engine *Engine) {
-	docId := 0
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	docId := uint64(0)
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国有十三亿人口人口",
 		Fields:  ScoringFields{1, 2, 3},
-	}, 0)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国人口",
 		Fields:  nil,
-	}, 1)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有人口",
 		Fields:  ScoringFields{2, 3, 1},
-	}, 2)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有十三亿人口",
 		Fields:  ScoringFields{2, 3, 3},
-	}, 3)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	}, 4)
+	})
 
 	engine.FlushIndex()
 }
@@ -55,7 +55,14 @@ func (rule RankByTokenProximity) Score(
 	return []float32{1.0 / (float32(doc.TokenProximity) + 1)}
 }
 
+func reset() {
+	core.DocInfoGroup = make(map[int]*types.DocInfosShard)
+	core.InvertedIndexGroup = make(map[int]*types.InvertedIndexShard)
+	os.RemoveAll("wukong.persistent")
+}
+
 func TestEngineIndexDocument(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -67,7 +74,6 @@ func TestEngineIndexDocument(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -92,6 +98,7 @@ func TestEngineIndexDocument(t *testing.T) {
 }
 
 func TestReverseOrder(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -104,7 +111,6 @@ func TestReverseOrder(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -118,6 +124,7 @@ func TestReverseOrder(t *testing.T) {
 }
 
 func TestOffsetAndMaxOutputs(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -130,7 +137,6 @@ func TestOffsetAndMaxOutputs(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -155,6 +161,7 @@ func (criteria TestScoringCriteria) Score(
 }
 
 func TestSearchWithCriteria(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -164,7 +171,6 @@ func TestSearchWithCriteria(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -180,13 +186,13 @@ func TestSearchWithCriteria(t *testing.T) {
 }
 
 func TestCompactIndex(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
 		DefaultRankOptions: &types.RankOptions{
 			ScoringCriteria: TestScoringCriteria{},
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
 	AddDocs(&engine)
@@ -213,6 +219,7 @@ func (criteria BM25ScoringCriteria) Score(
 }
 
 func TestFrequenciesIndex(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -222,33 +229,34 @@ func TestFrequenciesIndex(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.FrequenciesIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
+		NumShards: 2,
 	})
 
 	AddDocs(&engine)
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "2", len(outputs.Docs))
+	t.Log(outputs.Docs)
+	utils.Expect(t, "4", outputs.Docs[0].DocId)
+	utils.Expect(t, "2285", int(outputs.Docs[0].Scores[0]*1000))
 
-	utils.Expect(t, "0", outputs.Docs[0].DocId)
-	utils.Expect(t, "2500", int(outputs.Docs[0].Scores[0]*1000))
-
-	utils.Expect(t, "4", outputs.Docs[1].DocId)
-	utils.Expect(t, "2000", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "0", outputs.Docs[1].DocId)
+	utils.Expect(t, "2260", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestRemoveDocument(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
 		DefaultRankOptions: &types.RankOptions{
 			ScoringCriteria: TestScoringCriteria{},
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
+		NumShards: 2,
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument("4", 4)
+	engine.RemoveDocument(4)
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "1", len(outputs.Docs))
@@ -258,6 +266,8 @@ func TestRemoveDocument(t *testing.T) {
 }
 
 func TestEngineIndexDocumentWithTokens(t *testing.T) {
+	reset()
+
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -269,32 +279,31 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
-		Shards: []uint64{0, 1, 2, 3, 4},
 	})
 
-	docId := 0
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	docId := uint64(0)
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "",
 		Tokens: []types.TokenData{
 			{"中国", []int{0}},
 			{"人口", []int{18, 24}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	}, 0)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "",
 		Tokens: []types.TokenData{
 			{"中国", []int{0}},
 			{"人口", []int{6}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	}, 1)
+	})
 	docId++
-	engine.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
+	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	}, 2)
+	})
 
 	engine.FlushIndex()
 
@@ -318,6 +327,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 }
 
 func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
+	reset()
 	gob.Register(ScoringFields{})
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
@@ -332,10 +342,9 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		},
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "wukong.persistent",
-		Shards:                  []uint64{0, 1, 2, 3, 4},
 	})
 	AddDocs(&engine)
-	engine.RemoveDocument("4", 4)
+	engine.RemoveDocument(4)
 	engine.Close()
 
 	var engine1 Engine
@@ -351,7 +360,6 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		},
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "wukong.persistent",
-		Shards:                  []uint64{0, 1, 2, 3, 4},
 	})
 
 	outputs := engine1.Search(types.SearchRequest{Text: "中国人口"})
@@ -373,6 +381,7 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 }
 
 func TestCountDocsOnly(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -385,10 +394,11 @@ func TestCountDocsOnly(t *testing.T) {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
+		NumShards: 2,
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument("4")
+	engine.RemoveDocument(4)
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口", CountDocsOnly: true})
 	utils.Expect(t, "0", len(outputs.Docs))
@@ -397,6 +407,7 @@ func TestCountDocsOnly(t *testing.T) {
 }
 
 func TestSearchWithin(t *testing.T) {
+	reset()
 	var engine Engine
 	engine.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../testdata/test_dict.txt",
@@ -413,9 +424,9 @@ func TestSearchWithin(t *testing.T) {
 
 	AddDocs(&engine)
 
-	docIds := make(map[string]bool)
-	docIds["4"] = true
-	docIds["0"] = true
+	docIds := make(map[uint64]bool)
+	docIds[4] = true
+	docIds[0] = true
 	outputs := engine.Search(types.SearchRequest{
 		Text:   "中国人口",
 		DocIds: docIds,

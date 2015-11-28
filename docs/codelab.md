@@ -14,7 +14,7 @@
 	3. 索引器（indexer）协程，负责建立和查找索引表
 	4. 排序器（ranker）协程，负责对文档评分排序
     
-![](https://raw.github.com/henrylee2cn/wukong/master/docs/wukong.png)
+![](https://raw.github.com/huichen/wukong/master/docs/wukong.png)
 
 **索引流程**
 
@@ -32,7 +32,7 @@
 
 文档抓取的技术很多，多到可以单独拿出来写一篇文章。幸运的是微博抓取相对简单，可以通过新浪提供的API实现的，而且已经有[Go语言的SDK](http://github.com/huichen/gobo)可以并发抓取并且速度相当快。
 
-我已经抓了大概十万篇微博放在了testdata/weibo_data.txt里(因为影响git clone的下载速度所以删除了，请从[这里](https://github.com/henrylee2cn/wukong/blob/43f20b4c0921cc704cf41fe8653e66a3fcbb7e31/testdata/weibo_data.txt?raw=true)下载)，所以你就不需要自己做了。文件中每行存储了一篇微博，格式如下
+我已经抓了大概十万篇微博放在了testdata/weibo_data.txt里(因为影响git clone的下载速度所以删除了，请从[这里](https://github.com/huichen/wukong/blob/43f20b4c0921cc704cf41fe8653e66a3fcbb7e31/testdata/weibo_data.txt?raw=true)下载)，所以你就不需要自己做了。文件中每行存储了一篇微博，格式如下
 
     <微博id>||||<时间戳>||||<用户id>||||<用户名>||||<转贴数>||||<评论数>||||<喜欢数>||||<小图片网址>||||<大图片网址>||||<正文>
 
@@ -40,7 +40,7 @@
 
 ```go
 type Weibo struct {
-        Id           string
+        Id           uint64
         Timestamp    uint64
         UserName     string
         RepostsCount uint64
@@ -56,8 +56,8 @@ type Weibo struct {
 
 ```go
 import (
-	"github.com/henrylee2cn/wukong/engine"
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/engine"
+	"github.com/huichen/wukong/types"
 )
 ```
 第一个包定义了引擎功能，第二个包定义了常用结构体。在使用引擎之前需要初始化，例如

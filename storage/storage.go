@@ -2,11 +2,12 @@ package storage
 
 import (
 	"fmt"
+	"os"
 )
 
-const DEFAULT_STORAGE_ENGINE = "bolt"
+const DEFAULT_STORAGE_ENGINE = "kv"
 
-// const DEFAULT_STORAGE_ENGINE = "kv"
+// const DEFAULT_STORAGE_ENGINE = "bolt"
 
 var supportedStorage = map[string]func(path string) (Storage, error){
 	"kv":   openKVStorage,
@@ -26,10 +27,9 @@ type Storage interface {
 	WALName() string
 }
 
-func OpenStorage(path, wse string) (Storage, error) {
-	switch wse {
-	case "bolt", "kv":
-	default:
+func OpenStorage(path string) (Storage, error) {
+	wse := os.Getenv("WUKONG_STORAGE_ENGINE")
+	if wse == "" {
 		wse = DEFAULT_STORAGE_ENGINE
 	}
 	if fn, has := supportedStorage[wse]; has {

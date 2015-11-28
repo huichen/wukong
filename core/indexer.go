@@ -1,116 +1,99 @@
 package core
 
 import (
-	"github.com/henrylee2cn/wukong/types"
-	"github.com/henrylee2cn/wukong/utils"
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 	"log"
 	"math"
-	"sync"
 )
 
 // 索引器
 type Indexer struct {
-	// 从搜索键到文档列表的反向索引
-	// 加了读写锁以保证读写安全
-	tableLock struct {
-		sync.RWMutex
-		table map[string]*KeywordIndices
-		docs  map[string]bool
-	}
-
+	shard       int
 	initOptions types.IndexerInitOptions
 	initialized bool
-
-	// 这实际上是总文档数的一个近似
-	numDocuments uint64
-
-	// 所有被索引文本的总关键词数
-	totalTokenLength float32
-
-	// 每个文档的关键词长度
-	docTokenLengths map[string]float32
-}
-
-// 反向索引表的一行，收集了一个搜索键出现的所有文档，按照DocId从小到大排序。
-type KeywordIndices struct {
-	// 下面的切片是否为空，取决于初始化时IndexType的值
-	docIds      []string  // 全部类型都有
-	frequencies []float32 // IndexType == FrequenciesIndex
-	locations   [][]int   // IndexType == LocationsIndex
+	// 文档信息
+	*types.DocInfosShard
+	// 反向索引
+	*types.InvertedIndexShard
 }
 
 // 初始化索引器
-func (indexer *Indexer) Init(options types.IndexerInitOptions) {
+func (indexer *Indexer) Init(shard int, options types.IndexerInitOptions) {
 	if indexer.initialized == true {
 		log.Fatal("索引器不能初始化两次")
 	}
 	indexer.initialized = true
 
-	indexer.tableLock.table = make(map[string]*KeywordIndices)
-	indexer.tableLock.docs = make(map[string]bool)
+	indexer.shard = shard
+
+	AddDocInfosShard(shard)
+	indexer.DocInfosShard = DocInfoGroup[shard]
+
+	AddInvertedIndexShard(shard)
+	indexer.InvertedIndexShard = InvertedIndexGroup[shard]
+
 	indexer.initOptions = options
-	indexer.docTokenLengths = make(map[string]float32)
 }
 
-// 查找关键词是否已经存在
-// func (indexer *Indexer) FoundKeyword(kw string) bool {
-// 	indexer.tableLock.RLock()
-// 	defer indexer.tableLock.RUnlock()
-// 	_, foundKeyword := indexer.tableLock.table[kw]
-// 	return foundKeyword
-// }
-
 // 向反向索引表中加入一个文档
-func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
+func (indexer *Indexer) AddDocument(document *types.DocumentIndex, dealDocInfoChan chan<- bool) (addInvertedIndex map[string]*types.KeywordIndices) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
 
-	indexer.tableLock.Lock()
-	defer indexer.tableLock.Unlock()
+	indexer.InvertedIndexShard.Lock()
+	defer indexer.InvertedIndexShard.Unlock()
 
-	// log.Printf("%#v", document)
-
-	// 更新文档关键词总长度
-	if document.TokenLength != 0 {
-		originalLength, found := indexer.docTokenLengths[document.DocId]
-		indexer.docTokenLengths[document.DocId] = float32(document.TokenLength)
-		if found {
-			indexer.totalTokenLength += document.TokenLength - originalLength
-		} else {
-			indexer.totalTokenLength += document.TokenLength
-		}
+	// 更新文档总数及关键词总长度
+	indexer.DocInfosShard.Lock()
+	if _, found := indexer.DocInfosShard.DocInfos[document.DocId]; !found {
+		indexer.DocInfosShard.DocInfos[document.DocId] = new(types.DocInfo)
+		indexer.DocInfosShard.NumDocuments++
 	}
+	if document.TokenLength != 0 {
+		originalLength := indexer.DocInfosShard.DocInfos[document.DocId].TokenLengths
+		indexer.DocInfosShard.DocInfos[document.DocId].TokenLengths = float32(document.TokenLength)
+		indexer.InvertedIndexShard.TotalTokenLength += document.TokenLength - originalLength
+	}
+	indexer.DocInfosShard.Unlock()
+	close(dealDocInfoChan)
 
-	docIdIsNew := true
+	// docIdIsNew := true
+	foundKeyword := false
+	addInvertedIndex = make(map[string]*types.KeywordIndices)
 	for _, keyword := range document.Keywords {
-		indices, foundKeyword := indexer.tableLock.table[keyword.Text]
+		addInvertedIndex[keyword.Text], foundKeyword = indexer.InvertedIndexShard.InvertedIndex[keyword.Text]
+		if !foundKeyword {
+			addInvertedIndex[keyword.Text] = new(types.KeywordIndices)
+		}
+		indices := addInvertedIndex[keyword.Text]
+
 		if !foundKeyword {
 			// 如果没找到该搜索键则加入
-			ti := KeywordIndices{}
 			switch indexer.initOptions.IndexType {
 			case types.LocationsIndex:
-				ti.locations = [][]int{keyword.Starts}
+				indices.Locations = [][]int{keyword.Starts}
 			case types.FrequenciesIndex:
-				ti.frequencies = []float32{keyword.Frequency}
+				indices.Frequencies = []float32{keyword.Frequency}
 			}
-			ti.docIds = []string{document.DocId}
-			indexer.tableLock.table[keyword.Text] = &ti
-
+			indices.DocIds = []uint64{document.DocId}
+			indexer.InvertedIndexShard.InvertedIndex[keyword.Text] = indices
 			continue
 		}
 
 		// 查找应该插入的位置
-		position, found := indexer.searchIndex(indices, 0, indexer.getIndexLength(indices)-1, document.DocId)
+		position, found := indexer.searchIndex(
+			indices, 0, indexer.getIndexLength(indices)-1, document.DocId)
 		if found {
-			docIdIsNew = false
+			// docIdIsNew = false
 
 			// 覆盖已有的索引项
 			switch indexer.initOptions.IndexType {
 			case types.LocationsIndex:
-				indices.locations[position] = keyword.Starts
+				indices.Locations[position] = keyword.Starts
 			case types.FrequenciesIndex:
-				indices.frequencies[position] = keyword.Frequency
+				indices.Frequencies[position] = keyword.Frequency
 			}
 			continue
 		}
@@ -118,34 +101,33 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 		// 当索引不存在时，插入新索引项
 		switch indexer.initOptions.IndexType {
 		case types.LocationsIndex:
-			indices.locations = append(indices.locations, []int{})
-			copy(indices.locations[position+1:], indices.locations[position:])
-			indices.locations[position] = keyword.Starts
+			indices.Locations = append(indices.Locations, []int{})
+			copy(indices.Locations[position+1:], indices.Locations[position:])
+			indices.Locations[position] = keyword.Starts
 		case types.FrequenciesIndex:
-			indices.frequencies = append(indices.frequencies, float32(0))
-			copy(indices.frequencies[position+1:], indices.frequencies[position:])
-			indices.frequencies[position] = keyword.Frequency
+			indices.Frequencies = append(indices.Frequencies, float32(0))
+			copy(indices.Frequencies[position+1:], indices.Frequencies[position:])
+			indices.Frequencies[position] = keyword.Frequency
 		}
-		indices.docIds = append(indices.docIds, "")
-		copy(indices.docIds[position+1:], indices.docIds[position:])
-		indices.docIds[position] = document.DocId
+		indices.DocIds = append(indices.DocIds, 0)
+		copy(indices.DocIds[position+1:], indices.DocIds[position:])
+		indices.DocIds[position] = document.DocId
 	}
-
-	// 更新文章总数
-	if docIdIsNew {
-		indexer.tableLock.docs[document.DocId] = true
-		indexer.numDocuments++
-	}
+	return
 }
 
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
-func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[string]bool, countDocsOnly bool) (docs []types.IndexedDocument, numDocs int) {
+func (indexer *Indexer) Lookup(
+	tokens []string, labels []string, docIds map[uint64]bool, countDocsOnly bool) (docs []types.IndexedDocument, numDocs int) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
 
-	if indexer.numDocuments == 0 {
+	indexer.DocInfosShard.RLock()
+	defer indexer.DocInfosShard.RUnlock()
+
+	if indexer.DocInfosShard.NumDocuments == 0 {
 		return
 	}
 	numDocs = 0
@@ -155,13 +137,14 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 	copy(keywords, tokens)
 	copy(keywords[len(tokens):], labels)
 
-	indexer.tableLock.RLock()
-	defer indexer.tableLock.RUnlock()
-	table := make([]*KeywordIndices, len(keywords))
+	indexer.InvertedIndexShard.RLock()
+
+	table := make([]*types.KeywordIndices, len(keywords))
 	for i, keyword := range keywords {
-		indices, found := indexer.tableLock.table[keyword]
+		indices, found := indexer.InvertedIndexShard.InvertedIndex[keyword]
 		if !found {
 			// 当反向索引表中无此搜索键时直接返回
+			indexer.InvertedIndexShard.RUnlock()
 			return
 		} else {
 			// 否则加入反向表中
@@ -171,6 +154,7 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 
 	// 当没有找到时直接返回
 	if len(table) == 0 {
+		indexer.InvertedIndexShard.RUnlock()
 		return
 	}
 
@@ -181,11 +165,18 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 		indexPointers[iTable] = indexer.getIndexLength(table[iTable]) - 1
 	}
 	// 平均文本关键词长度，用于计算BM25
-	avgDocLength := indexer.totalTokenLength / float32(indexer.numDocuments)
+	avgDocLength := indexer.InvertedIndexShard.TotalTokenLength / float32(indexer.DocInfosShard.NumDocuments)
+	indexer.InvertedIndexShard.RUnlock()
+
 	for ; indexPointers[0] >= 0; indexPointers[0]-- {
 		// 以第一个搜索键出现的文档作为基准，并遍历其他搜索键搜索同一文档
 		baseDocId := indexer.getDocId(table[0], indexPointers[0])
-		if _, ok := indexer.tableLock.docs[baseDocId]; !ok {
+
+		// 全局范围查找目标文档是否存在
+		if _, ok := indexer.DocInfosShard.DocInfos[baseDocId]; !ok {
+			// if !IsDocExist(baseDocId) {
+			// 文档信息中不存在反向索引文档时，跳过
+			// 该情况由不对称删除操作所造成
 			continue
 		}
 
@@ -228,7 +219,7 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 				// 计算有多少关键词是带有距离信息的
 				numTokensWithLocations := 0
 				for i, t := range table[:len(tokens)] {
-					if len(t.locations[indexPointers[i]]) > 0 {
+					if len(t.Locations[indexPointers[i]]) > 0 {
 						numTokensWithLocations++
 					}
 				}
@@ -250,7 +241,7 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 				// 添加TokenLocations
 				indexedDoc.TokenLocations = make([][]int, len(tokens))
 				for i, t := range table[:len(tokens)] {
-					indexedDoc.TokenLocations[i] = t.locations[indexPointers[i]]
+					indexedDoc.TokenLocations[i] = t.Locations[indexPointers[i]]
 				}
 			}
 
@@ -258,19 +249,19 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 			if indexer.initOptions.IndexType == types.LocationsIndex ||
 				indexer.initOptions.IndexType == types.FrequenciesIndex {
 				bm25 := float32(0)
-				d := indexer.docTokenLengths[baseDocId]
+				d := indexer.DocInfosShard.DocInfos[baseDocId].TokenLengths
 				for i, t := range table[:len(tokens)] {
 					var frequency float32
 					if indexer.initOptions.IndexType == types.LocationsIndex {
-						frequency = float32(len(t.locations[indexPointers[i]]))
+						frequency = float32(len(t.Locations[indexPointers[i]]))
 					} else {
-						frequency = t.frequencies[indexPointers[i]]
+						frequency = t.Frequencies[indexPointers[i]]
 					}
 
 					// 计算BM25
-					if len(t.docIds) > 0 && frequency > 0 && indexer.initOptions.BM25Parameters != nil && avgDocLength != 0 {
+					if len(t.DocIds) > 0 && frequency > 0 && indexer.initOptions.BM25Parameters != nil && avgDocLength != 0 {
 						// 带平滑的idf
-						idf := float32(math.Log2(float64(indexer.numDocuments)/float64(len(t.docIds)) + 1))
+						idf := float32(math.Log2(float64(indexer.DocInfosShard.NumDocuments)/float64(len(t.DocIds)) + 1))
 						k1 := indexer.initOptions.BM25Parameters.K1
 						b := indexer.initOptions.BM25Parameters.B
 						bm25 += idf * frequency * (k1 + 1) / (frequency + k1*(1-b+b*d/avgDocLength))
@@ -292,7 +283,8 @@ func (indexer *Indexer) Lookup(tokens []string, labels []string, docIds map[stri
 // 二分法查找indices中某文档的索引项
 // 第一个返回参数为找到的位置或需要插入的位置
 // 第二个返回参数标明是否找到
-func (indexer *Indexer) searchIndex(indices *KeywordIndices, start int, end int, docId string) (int, bool) {
+func (indexer *Indexer) searchIndex(
+	indices *types.KeywordIndices, start int, end int, docId uint64) (int, bool) {
 	// 特殊情况
 	if indexer.getIndexLength(indices) == start {
 		return start, false
@@ -332,7 +324,7 @@ func (indexer *Indexer) searchIndex(indices *KeywordIndices, start int, end int,
 //
 // 具体由动态规划实现，依次计算前 i 个 token 在每个出现位置的最优值。
 // 选定的 P_i 通过 tokenLocations 参数传回。
-func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens []string) (
+func computeTokenProximity(table []*types.KeywordIndices, indexPointers []int, tokens []string) (
 	minTokenProximity int, tokenLocations []int) {
 	minTokenProximity = -1
 	tokenLocations = make([]int, len(tokens))
@@ -346,14 +338,14 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 	// 初始化路径数组
 	path = make([][]int, len(tokens))
 	for i := 1; i < len(path); i++ {
-		path[i] = make([]int, len(table[i].locations[indexPointers[i]]))
+		path[i] = make([]int, len(table[i].Locations[indexPointers[i]]))
 	}
 
 	// 动态规划
-	currentLocations = table[0].locations[indexPointers[0]]
+	currentLocations = table[0].Locations[indexPointers[0]]
 	currentMinValues = make([]int, len(currentLocations))
 	for i := 1; i < len(tokens); i++ {
-		nextLocations = table[i].locations[indexPointers[i]]
+		nextLocations = table[i].Locations[indexPointers[i]]
 		nextMinValues = make([]int, len(nextLocations))
 		for j, _ := range nextMinValues {
 			nextMinValues[j] = -1
@@ -405,29 +397,24 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens 
 		if i != len(tokens)-1 {
 			cursor = path[i+1][cursor]
 		}
-		tokenLocations[i] = table[i].locations[indexPointers[i]][cursor]
+		tokenLocations[i] = table[i].Locations[indexPointers[i]][cursor]
 	}
 	return
 }
 
 // 从KeywordIndices中得到第i个文档的DocId
-func (indexer *Indexer) getDocId(ti *KeywordIndices, i int) string {
-	return ti.docIds[i]
+func (indexer *Indexer) getDocId(ti *types.KeywordIndices, i int) uint64 {
+	return ti.DocIds[i]
 }
 
 // 得到KeywordIndices中文档总数
-func (indexer *Indexer) getIndexLength(ti *KeywordIndices) int {
-	return len(ti.docIds)
+func (indexer *Indexer) getIndexLength(ti *types.KeywordIndices) int {
+	return len(ti.DocIds)
 }
 
-// 删除某个文档
-func (indexer *Indexer) RemoveDoc(docId string) {
+// 删除某个文档（反向索引的删除太复杂故而不做，只在排序器中删除文档即可）
+func (indexer *Indexer) RemoveDoc(docId uint64) {
 	if indexer.initialized == false {
 		log.Fatal("排序器尚未初始化")
 	}
-
-	indexer.tableLock.Lock()
-	delete(indexer.tableLock.docs, docId)
-	indexer.numDocuments--
-	indexer.tableLock.Unlock()
 }

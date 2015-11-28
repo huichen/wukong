@@ -1,19 +1,15 @@
 package engine
 
 import (
-	"github.com/henrylee2cn/wukong/types"
-	"runtime"
-	"sync/atomic"
+	"github.com/huichen/wukong/types"
 )
 
 type segmenterRequest struct {
-	docId             string
-	shard             uint64
-	data              types.DocumentIndexData
-	documentIndexChan chan *types.DocumentIndex
+	docId uint64
+	shard int
+	data  types.DocumentIndexData
 }
 
-// 只有IndexDocument时用到
 func (engine *Engine) segmenterWorker() {
 	for {
 		request := <-engine.segmenterChannel
@@ -58,82 +54,26 @@ func (engine *Engine) segmenterWorker() {
 				Keywords:    make([]types.KeywordIndex, len(tokensMap)),
 			},
 		}
-
 		iTokens := 0
 		for k, v := range tokensMap {
 			indexerRequest.document.Keywords[iTokens] = types.KeywordIndex{
 				Text: k,
 				// 非分词标注的词频设置为0，不参与tf-idf计算
 				Frequency: float32(len(v)),
-				Starts:    v,
-			}
+				Starts:    v}
 			iTokens++
 		}
 
-		if request.documentIndexChan != nil {
-			go engine.segmenterWorkerExec(request, indexerRequest)
-		} else {
-			engine.segmenterWorkerExec(request, indexerRequest)
+		var dealDocInfoChan = make(chan bool, 1)
+
+		indexerRequest.dealDocInfoChan = dealDocInfoChan
+		engine.indexerAddDocumentChannels[request.shard] <- indexerRequest
+
+		rankerRequest := rankerAddDocRequest{
+			docId:           request.docId,
+			fields:          request.data.Fields,
+			dealDocInfoChan: dealDocInfoChan,
 		}
-	}
-}
-
-func (engine *Engine) segmenterWorkerExec(request segmenterRequest, indexerRequest indexerAddDocumentRequest) {
-	if request.documentIndexChan != nil {
-		// 返回DocumentIndex
-		request.documentIndexChan <- indexerRequest.document
-
-		// 统计被执行次数
-		documentIndexChanCount[request.documentIndexChan].Mutex.Lock()
-		documentIndexChanCount[request.documentIndexChan].Num++
-		documentIndexChanCount[request.documentIndexChan].Mutex.Unlock()
-
-		// 此时此处，外部插队执行关于documentIndexChan的处理...
-
-		// 等待通道被写满，即所有同类文档被分词完毕
-		for documentIndexChanCount[request.documentIndexChan].Num < cap(request.documentIndexChan) {
-			runtime.Gosched()
-		}
-
-		// 等待通道数据被外部程序全部读出，即确保外部程序对于documentIndexChan的相关处理在建立索引前完成
-		for len(request.documentIndexChan) > 0 {
-			runtime.Gosched()
-		}
-
-		// 等待通道关闭
-		for range request.documentIndexChan {
-			// 获取任意一个信号，终止当前索引任务
-			// 清除记录
-			if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
-				delete(documentIndexChanCount, request.documentIndexChan)
-			}
-			atomic.AddUint64(&engine.numDocumentsIndexed, 1)
-			atomic.AddUint64(&engine.numDocumentsStored, 1)
-			return
-		}
-		// 清除记录
-		if _, ok := documentIndexChanCount[request.documentIndexChan]; ok {
-			delete(documentIndexChanCount, request.documentIndexChan)
-		}
-	}
-	// 发送至索引器处理
-	engine.indexerAddDocumentChannels[request.shard] <- indexerRequest
-	// 发送至排序器处理
-	engine.rankerAddDocChannels[request.shard] <- rankerAddDocRequest{
-		docId:  request.docId,
-		fields: request.data.Fields,
-	}
-
-	// 存索引信息至数据库
-	if engine.initOptions.UsePersistentStorage {
-		// for range indexerRequest.document.Keywords {
-		// if engine.indexers[request.shard].FoundKeyword(keyword.Text) {
-		// 	continue
-		// }
-		engine.persistentStorageIndexDocumentChannels[request.shard] <- persistentStorageIndexDocumentRequest{
-			DocumentIndex: indexerRequest.document,
-			Fields:        request.data.Fields,
-		}
-		// }
+		engine.rankerAddDocChannels[request.shard] <- rankerRequest
 	}
 }

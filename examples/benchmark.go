@@ -4,13 +4,12 @@ package main
 import (
 	"bufio"
 	"flag"
-	"github.com/henrylee2cn/wukong/engine"
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/engine"
+	"github.com/huichen/wukong/types"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -70,10 +69,11 @@ func main() {
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: *index_type,
 		},
-		Shards:                  []uint64{0, 1, 2, 3, 4},
+		NumShards:               NumShards,
 		DefaultRankOptions:      &options,
 		UsePersistentStorage:    *use_persistent,
 		PersistentStorageFolder: *persistent_storage_folder,
+		PersistentStorageShards: *persistent_storage_shards,
 	})
 	tEndInit := time.Now()
 	defer searcher.Close()
@@ -119,11 +119,11 @@ func main() {
 
 	// 建索引
 	log.Print("建索引 ... ")
-	docId := 1
+	docId := uint64(1)
 	for i := 0; i < *num_repeat_text; i++ {
 		for _, line := range lines {
-			searcher.IndexDocument(strconv.Itoa(docId), types.DocumentIndexData{
-				Content: line}, 1)
+			searcher.IndexDocument(docId, types.DocumentIndexData{
+				Content: line})
 			docId++
 			if docId-docId/1000000*1000000 == 0 {
 				log.Printf("已索引%d百万文档", docId/1000000)
@@ -179,10 +179,11 @@ func main() {
 			IndexerInitOptions: &types.IndexerInitOptions{
 				IndexType: *index_type,
 			},
-			Shards:                  []uint64{0, 1, 2, 3, 4},
+			NumShards:               NumShards,
 			DefaultRankOptions:      &options,
 			UsePersistentStorage:    *use_persistent,
 			PersistentStorageFolder: *persistent_storage_folder,
+			PersistentStorageShards: *persistent_storage_shards,
 		})
 		defer searcher1.Close()
 		t5 := time.Now()

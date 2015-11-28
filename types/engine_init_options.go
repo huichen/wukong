@@ -8,6 +8,7 @@ import (
 var (
 	// EngineInitOptions的默认值
 	defaultNumSegmenterThreads       = runtime.NumCPU()
+	defaultNumShards                 = 8
 	defaultIndexerBufferLength       = runtime.NumCPU()
 	defaultNumIndexerThreadsPerShard = runtime.NumCPU()
 	defaultRankerBufferLength        = runtime.NumCPU()
@@ -42,9 +43,10 @@ type EngineInitOptions struct {
 	// 分词器线程数
 	NumSegmenterThreads int
 
-	// 索引器和排序器的shard列表
-	// 被检索/排序的文档会被按自定义规则分配到各个shard中
-	Shards []uint64
+	// 索引器/排序器/持久数据库的shard数目
+	// 被检索/排序的文档会被均匀分配到各个shard中
+	// 每个shard对应一对数据库文件（反向索引数据库和文档字段数据库）
+	NumShards int
 
 	// 索引器的信道缓冲长度
 	IndexerBufferLength int
@@ -64,10 +66,9 @@ type EngineInitOptions struct {
 	// 默认的搜索选项
 	DefaultRankOptions *RankOptions
 
-	// 是否使用持久数据库，以及数据库文件保存目录和数据库引擎
+	// 是否使用持久数据库，以及数据库文件保存的目录
 	UsePersistentStorage    bool
 	PersistentStorageFolder string
-	PersistentStorageEngine string
 }
 
 // 初始化EngineInitOptions，当用户未设定某个选项的值时用默认值取代
@@ -80,6 +81,10 @@ func (options *EngineInitOptions) Init() {
 
 	if options.NumSegmenterThreads == 0 {
 		options.NumSegmenterThreads = defaultNumSegmenterThreads
+	}
+
+	if options.NumShards == 0 {
+		options.NumShards = defaultNumShards
 	}
 
 	if options.IndexerBufferLength == 0 {

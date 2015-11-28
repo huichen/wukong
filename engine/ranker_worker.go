@@ -1,12 +1,13 @@
 package engine
 
 import (
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/types"
 )
 
 type rankerAddDocRequest struct {
-	docId  string
-	fields interface{}
+	docId           uint64
+	fields          interface{}
+	dealDocInfoChan <-chan bool
 }
 
 type rankerRankRequest struct {
@@ -22,29 +23,37 @@ type rankerReturnRequest struct {
 }
 
 type rankerRemoveDocRequest struct {
-	docId string
+	docId uint64
 }
 
-func (engine *Engine) rankerAddDocWorker(shard uint64) {
+func (engine *Engine) rankerAddDocWorker(shard int) {
 	for {
 		request := <-engine.rankerAddDocChannels[shard]
-		engine.rankers[shard].AddDoc(request.docId, request.fields)
+		docInfo := engine.rankers[shard].AddDoc(request.docId, request.fields, request.dealDocInfoChan)
+		// save
+		if engine.initOptions.UsePersistentStorage {
+			engine.persistentStorageIndexDocumentChannels[shard] <- persistentStorageIndexDocumentRequest{
+				typ:     "info",
+				docId:   request.docId,
+				docInfo: docInfo,
+			}
+		}
 	}
 }
 
-func (engine *Engine) rankerRankWorker(shard uint64) {
+func (engine *Engine) rankerRankWorker(shard int) {
 	for {
 		request := <-engine.rankerRankChannels[shard]
 		if request.options.MaxOutputs != 0 {
 			request.options.MaxOutputs += request.options.OutputOffset
 		}
-		// request.options.OutputOffset = 0
+		request.options.OutputOffset = 0
 		outputDocs, numDocs := engine.rankers[shard].Rank(request.docs, request.options, request.countDocsOnly)
 		request.rankerReturnChannel <- rankerReturnRequest{docs: outputDocs, numDocs: numDocs}
 	}
 }
 
-func (engine *Engine) rankerRemoveDocWorker(shard uint64) {
+func (engine *Engine) rankerRemoveDocWorker(shard int) {
 	for {
 		request := <-engine.rankerRemoveDocChannels[shard]
 		engine.rankers[shard].RemoveDoc(request.docId)

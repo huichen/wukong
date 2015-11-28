@@ -2,74 +2,119 @@ package engine
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/core"
+	"github.com/huichen/wukong/types"
+	"sync"
 	"sync/atomic"
 )
 
 type persistentStorageIndexDocumentRequest struct {
-	DocumentIndex *types.DocumentIndex
-	Fields        interface{}
+	typ string //"info"or"index"
+
+	// typ=="info"时，以下两个字段有效
+	docId   uint64
+	docInfo *types.DocInfo
+
+	// typ=="index"时，以下两个字段有效
+	keyword        string
+	keywordIndices *types.KeywordIndices
 }
 
-// 写入数据的协程
-func (engine *Engine) persistentStorageIndexDocumentWorker(shard uint64) {
+func (engine *Engine) persistentStorageIndexDocumentWorker(shard int) {
 	for {
 		request := <-engine.persistentStorageIndexDocumentChannels[shard]
+		switch request.typ {
+		case "info":
+			// 得到key
+			b := make([]byte, 10)
+			length := binary.PutUvarint(b, request.docId)
 
-		// 得到key
-		b := []byte(request.DocumentIndex.DocId)
+			// 得到value
+			var buf bytes.Buffer
+			enc := gob.NewEncoder(&buf)
+			err := enc.Encode(request.docInfo)
+			if err != nil {
+				atomic.AddUint64(&engine.numDocumentsStored, 1)
+				return
+			}
 
-		// 得到value
-		var buf bytes.Buffer
-		enc := gob.NewEncoder(&buf)
-		err := enc.Encode(request)
-		if err != nil {
+			// 将key-value写入数据库
+			engine.dbs[shard][getDB(request.typ)].Set(b[0:length], buf.Bytes())
 			atomic.AddUint64(&engine.numDocumentsStored, 1)
-			continue
-		}
 
-		// 将key-value写入数据库
-		engine.dbs[shard].Set(b, buf.Bytes())
-		atomic.AddUint64(&engine.numDocumentsStored, 1)
+		case "index":
+			// 得到key
+			b := []byte(request.keyword)
+
+			// 得到value
+			var buf bytes.Buffer
+			enc := gob.NewEncoder(&buf)
+			err := enc.Encode(request.keywordIndices)
+			if err != nil {
+				return
+			}
+
+			// 将key-value写入数据库
+			engine.dbs[shard][getDB(request.typ)].Set(b, buf.Bytes())
+		}
 	}
 }
 
-// 删除数据
-func (engine *Engine) persistentStorageRemoveDocumentWorker(shard uint64, docId string) {
+func (engine *Engine) persistentStorageRemoveDocumentWorker(docId uint64, shard int) {
 	// 得到key
-	b := []byte(docId)
+	b := make([]byte, 10)
+	length := binary.PutUvarint(b, docId)
 
 	// 从数据库删除该key
-	engine.dbs[shard].Delete(b)
+	engine.dbs[shard][getDB("info")].Delete(b[0:length])
 }
 
-// 恢复数据
-func (engine *Engine) persistentStorageInitWorker(shard uint64) {
-	engine.dbs[shard].ForEach(func(key, value []byte) error {
-		// 得到documentIndex
-		buf := bytes.NewReader(value)
-		dec := gob.NewDecoder(buf)
-		var request = new(persistentStorageIndexDocumentRequest)
-		err := dec.Decode(request)
+func (engine *Engine) persistentStorageInitWorker(shard int) {
+	var finish sync.WaitGroup
+	finish.Add(2)
+	// 恢复docInfo
+	go func() {
+		defer finish.Add(-1)
+		engine.dbs[shard][getDB("info")].ForEach(func(k, v []byte) error {
+			key, value := k, v
+			// 得到docID
+			docId, _ := binary.Uvarint(key)
 
-		// 添加索引文档
-		if err == nil {
-			// 发送至索引器处理
-			engine.indexerAddDocumentChannels[shard] <- indexerAddDocumentRequest{
-				document: request.DocumentIndex,
+			// 得到data
+			buf := bytes.NewReader(value)
+			dec := gob.NewDecoder(buf)
+			var data types.DocInfo
+			err := dec.Decode(&data)
+			if err == nil {
+				// 添加索引
+				core.AddDocInfo(shard, docId, &data)
 			}
-			// 发送至排序器处理
-			engine.rankerAddDocChannels[shard] <- rankerAddDocRequest{
-				docId:  request.DocumentIndex.DocId,
-				fields: request.Fields,
+			return nil
+		})
+	}()
+
+	// 恢复invertedIndex
+	go func() {
+		defer finish.Add(-1)
+		engine.dbs[shard][getDB("index")].ForEach(func(k, v []byte) error {
+			key, value := k, v
+			// 得到keyword
+			keyword := string(key)
+
+			// 得到data
+			buf := bytes.NewReader(value)
+			dec := gob.NewDecoder(buf)
+			var data types.KeywordIndices
+			err := dec.Decode(&data)
+			if err == nil {
+				// 添加索引
+				core.AddKeywordIndices(shard, keyword, &data)
 			}
-
-			atomic.AddUint64(&engine.numIndexingRequests, 1)
-			atomic.AddUint64(&engine.numDocumentsStored, 1)
-		}
-		return nil
-	})
-
+			return nil
+		})
+	}()
+	finish.Wait()
 	engine.persistentStorageInitChannel <- true
 }

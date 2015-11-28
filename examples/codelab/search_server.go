@@ -6,8 +6,8 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"flag"
-	"github.com/henrylee2cn/wukong/engine"
-	"github.com/henrylee2cn/wukong/types"
+	"github.com/huichen/wukong/engine"
+	"github.com/huichen/wukong/types"
 	"io"
 	"log"
 	"net/http"
@@ -25,7 +25,7 @@ const (
 
 var (
 	searcher      = engine.Engine{}
-	wbs           = map[string]Weibo{}
+	wbs           = map[uint64]Weibo{}
 	weiboData     = flag.String("weibo_data", "../../testdata/weibo_data.txt", "微博数据文件")
 	dictFile      = flag.String("dict_file", "../../data/dictionary.txt", "词典文件")
 	stopTokenFile = flag.String("stop_token_file", "../../data/stop_tokens.txt", "停用词文件")
@@ -33,7 +33,7 @@ var (
 )
 
 type Weibo struct {
-	Id           string `json:"id"`
+	Id           uint64 `json:"id"`
 	Timestamp    uint64 `json:"timestamp"`
 	UserName     string `json:"user_name"`
 	RepostsCount uint64 `json:"reposts_count"`
@@ -57,7 +57,7 @@ func indexWeibo() {
 			continue
 		}
 		wb := Weibo{}
-		wb.Id = data[0]
+		wb.Id, _ = strconv.ParseUint(data[0], 10, 64)
 		wb.Timestamp, _ = strconv.ParseUint(data[1], 10, 64)
 		wb.UserName = data[3]
 		wb.RepostsCount, _ = strconv.ParseUint(data[4], 10, 64)
@@ -73,7 +73,7 @@ func indexWeibo() {
 				Timestamp:    weibo.Timestamp,
 				RepostsCount: weibo.RepostsCount,
 			},
-		}, 12638153115695167471)
+		})
 	}
 
 	searcher.FlushIndex()
@@ -124,11 +124,8 @@ func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 			OutputOffset:    0,
 			MaxOutputs:      100,
 		},
-		// 分片为空时，搜索全部分片
-		Shards: []uint64{},
 	})
 
-	log.Println("jieguo", output)
 	// 整理为输出格式
 	docs := []*Weibo{}
 	for _, doc := range output.Docs {
@@ -155,22 +152,20 @@ func main() {
 	gob.Register(WeiboScoringFields{})
 	log.Print("引擎开始初始化")
 	searcher.Init(types.EngineInitOptions{
+		NumShards:             10,
 		SegmenterDictionaries: *dictFile,
 		StopTokenFile:         *stopTokenFile,
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
 		// 如果你希望使用持久存储，启用下面的选项
-		// 默认使用boltdb持久化
+		// 默认使用boltdb持久化，如果你希望修改数据库类型
+		// 请修改 WUKONG_STORAGE_ENGINE 环境变量
 		UsePersistentStorage:    true,
 		PersistentStorageFolder: "weibo_search",
-		// PersistentStorageEngine: "kv", //或"boltdb"
-		PersistentStorageEngine: "boltdb", //或"boltdb"
-		// 初始化指定的分片，可为空
-		// Shards: []uint64{12638153115695167471},
 	})
 	log.Print("引擎初始化完毕")
-	wbs = make(map[string]Weibo)
+	wbs = make(map[uint64]Weibo)
 
 	// 索引
 	log.Print("建索引开始")
@@ -191,5 +186,5 @@ func main() {
 	http.HandleFunc("/json", JsonRpcServer)
 	http.Handle("/", http.FileServer(http.Dir(*staticFolder)))
 	log.Print("服务器启动")
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
