@@ -19,7 +19,7 @@ func OpenLeveldbStorage(path string) (Storage, error) {
 }
 
 func (s *leveldbStorage) WALName() string {
-	return string{}//对于此数据库，本函数没什么卵用~
+	return "" //对于此数据库，本函数没什么卵用~
 }
 
 func (s *leveldbStorage) Set(k, v []byte) error {
