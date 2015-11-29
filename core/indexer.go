@@ -176,10 +176,6 @@ func (indexer *Indexer) Lookup(
 	for ; indexPointers[0] >= 0; indexPointers[0]-- {
 		// 以第一个搜索键出现的文档作为基准，并遍历其他搜索键搜索同一文档
 		baseDocId := indexer.getDocId(table[0], indexPointers[0])
-		if _, ok := indexer.tableLock.docs[baseDocId]; !ok {
-			continue
-		}
-
 		if docIds != nil {
 			_, found := docIds[baseDocId]
 			if !found {
@@ -212,6 +208,9 @@ func (indexer *Indexer) Lookup(
 		}
 
 		if found {
+			if _, ok := indexer.tableLock.docs[baseDocId]; !ok {
+				continue
+			}
 			indexedDoc := types.IndexedDocument{}
 
 			// 当为LocationsIndex时计算关键词紧邻距离
