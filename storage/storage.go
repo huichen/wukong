@@ -11,6 +11,7 @@ const DEFAULT_STORAGE_ENGINE = "kv"
 
 var supportedStorage = map[string]func(path string) (Storage, error){
 	"kv":   openKVStorage,
+	"ldb":  OpenLeveldbStorage,
 	"bolt": openBoltStorage,
 }
 
