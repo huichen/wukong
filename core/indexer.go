@@ -141,15 +141,15 @@ func (indexer *Indexer) Lookup(
 	}
 	numDocs = 0
 
-	// 合并关键词和标签为搜索键
-	keywords := make([]string, len(tokens)+len(labels))
-	copy(keywords, tokens)
-	copy(keywords[len(tokens):], labels)
+	mustKeywords, mustTokensLength, mustNotKeywords, isValid := getProssedQueries(tokens, labels)
+	if !isValid {
+		return
+	}
 
 	indexer.tableLock.RLock()
 	defer indexer.tableLock.RUnlock()
-	table := make([]*KeywordIndices, len(keywords))
-	for i, keyword := range keywords {
+	table := make([]*KeywordIndices, len(mustKeywords))
+	for i, keyword := range mustKeywords {
 		indices, found := indexer.tableLock.table[keyword]
 		if !found {
 			// 当反向索引表中无此搜索键时直接返回
@@ -157,6 +157,15 @@ func (indexer *Indexer) Lookup(
 		} else {
 			// 否则加入反向表中
 			table[i] = indices
+		}
+	}
+
+	// 保存must not搜索键
+	mustNotTable := make([]*KeywordIndices, 0)
+	for _, keyword := range mustNotKeywords {
+		indices, found := indexer.tableLock.table[keyword]
+		if found {
+			mustNotTable = append(mustNotTable, indices)
 		}
 	}
 
@@ -171,6 +180,7 @@ func (indexer *Indexer) Lookup(
 	for iTable := 0; iTable < len(table); iTable++ {
 		indexPointers[iTable] = indexer.getIndexLength(table[iTable]) - 1
 	}
+
 	// 平均文本关键词长度，用于计算BM25
 	avgDocLength := indexer.totalTokenLength / float32(indexer.numDocuments)
 	for ; indexPointers[0] >= 0; indexPointers[0]-- {
@@ -182,7 +192,9 @@ func (indexer *Indexer) Lookup(
 				continue
 			}
 		}
+
 		iTable := 1
+
 		found := true
 		for ; iTable < len(table); iTable++ {
 			// 二分法比简单的顺序归并效率高，也有更高效率的算法，
@@ -192,7 +204,11 @@ func (indexer *Indexer) Lookup(
 			position, foundBaseDocId := indexer.searchIndex(table[iTable],
 				0, indexPointers[iTable], baseDocId)
 			if foundBaseDocId {
-				indexPointers[iTable] = position
+				if !indexer.findInMustNotTable(mustNotTable, baseDocId) {
+					indexPointers[iTable] = position
+				} else {
+					found = false
+				}
 			} else {
 				if position == 0 {
 					// 该搜索键中所有的文档ID都比baseDocId大，因此已经没有
@@ -207,6 +223,14 @@ func (indexer *Indexer) Lookup(
 			}
 		}
 
+		// 如果搜索键只返回一个反向表， 并且存在逻辑非搜索键
+		// 则需要判断baseDocId是不是在逻辑非反向表中
+		if len(table) == 1 && len(mustNotTable) > 0 {
+			if indexer.findInMustNotTable(mustNotTable, baseDocId) {
+				found = false
+			}
+		}
+
 		if found {
 			if _, ok := indexer.tableLock.docs[baseDocId]; !ok {
 				continue
@@ -217,12 +241,12 @@ func (indexer *Indexer) Lookup(
 			if indexer.initOptions.IndexType == types.LocationsIndex {
 				// 计算有多少关键词是带有距离信息的
 				numTokensWithLocations := 0
-				for i, t := range table[:len(tokens)] {
+				for i, t := range table[:mustTokensLength] {
 					if len(t.locations[indexPointers[i]]) > 0 {
 						numTokensWithLocations++
 					}
 				}
-				if numTokensWithLocations != len(tokens) {
+				if numTokensWithLocations != mustTokensLength {
 					if !countDocsOnly {
 						docs = append(docs, types.IndexedDocument{
 							DocId: baseDocId,
@@ -233,13 +257,13 @@ func (indexer *Indexer) Lookup(
 				}
 
 				// 计算搜索键在文档中的紧邻距离
-				tokenProximity, tokenLocations := computeTokenProximity(table[:len(tokens)], indexPointers, tokens)
+				tokenProximity, tokenLocations := computeTokenProximity(table[:mustTokensLength], indexPointers, mustKeywords[:mustTokensLength])
 				indexedDoc.TokenProximity = int32(tokenProximity)
 				indexedDoc.TokenSnippetLocations = tokenLocations
 
 				// 添加TokenLocations
-				indexedDoc.TokenLocations = make([][]int, len(tokens))
-				for i, t := range table[:len(tokens)] {
+				indexedDoc.TokenLocations = make([][]int, mustTokensLength)
+				for i, t := range table[:mustTokensLength] {
 					indexedDoc.TokenLocations[i] = t.locations[indexPointers[i]]
 				}
 			}
@@ -249,7 +273,7 @@ func (indexer *Indexer) Lookup(
 				indexer.initOptions.IndexType == types.FrequenciesIndex {
 				bm25 := float32(0)
 				d := indexer.docTokenLengths[baseDocId]
-				for i, t := range table[:len(tokens)] {
+				for i, t := range table[:mustTokensLength] {
 					var frequency float32
 					if indexer.initOptions.IndexType == types.LocationsIndex {
 						frequency = float32(len(t.locations[indexPointers[i]]))
@@ -421,4 +445,56 @@ func (indexer *Indexer) RemoveDoc(docId uint64) {
 	delete(indexer.tableLock.docs, docId)
 	indexer.numDocuments--
 	indexer.tableLock.Unlock()
+}
+
+func getProssedQueries(tokens []string, labels []string) (
+	[]string, int, []string, bool) {
+	mustTokensLength := 0
+	mustKeywords := make([]string, 0)
+	mustNotKeywords := make([]string, 0)
+
+	for _, v := range tokens {
+		if len(v) > 0 && v[0:1] == "+" {
+			mustKeywords = append(mustKeywords, v[1:])
+			mustTokensLength++
+		}
+		if len(v) > 0 && v[0:1] == "-" {
+			mustNotKeywords = append(mustNotKeywords, v[1:])
+		}
+		if len(v) > 0 && v[:1] != "+" && v[:1] != "-" {
+			mustKeywords = append(mustKeywords, v)
+			mustTokensLength++
+		}
+	}
+
+	for _, v := range labels {
+		if len(v) > 0 && v[0:1] == "+" {
+			mustKeywords = append(mustKeywords, v[1:])
+		}
+		if len(v) > 0 && v[0:1] == "-" {
+			mustNotKeywords = append(mustNotKeywords, v[1:])
+		}
+		if len(v) > 0 && v[:1] != "+" && v[:1] != "-" {
+			mustKeywords = append(mustKeywords, v)
+		}
+	}
+
+	if mustTokensLength == 0 && len(mustNotKeywords) > 0 {
+		// 不能只包含非搜索键
+		return mustKeywords, mustTokensLength, mustNotKeywords, false
+	}
+	return mustKeywords, mustTokensLength, mustNotKeywords, true
+}
+
+// 在must not table中查找docId
+// 返回： 找到： true， 未找到： false
+func (indexer *Indexer) findInMustNotTable(table []*KeywordIndices, docId uint64) bool {
+	for i := 0; i < len(table); i++ {
+		_, foundDocId := indexer.searchIndex(table[i],
+			0, indexer.getIndexLength(table[i])-1, docId)
+		if foundDocId {
+			return true
+		}
+	}
+	return false
 }
