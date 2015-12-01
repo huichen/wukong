@@ -370,3 +370,34 @@ func TestLookupWithLocations(t *testing.T) {
 	docs, _ := indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)
 	utils.Expect(t, "[[0 21] [28]]", docs[0].TokenLocations)
 }
+
+func TestunionTable(t *testing.T) {
+	var indexer Indexer
+	indexer.Init(types.IndexerInitOptions{IndexType: types.LocationsIndex})
+	// doc0 = "label1, label2, label3, label4"(不在文本中)
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 0,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+			{"label3", 0, []int{}},
+			{"label4", 0, []int{}},
+		},
+	})
+
+	// doc1 = "label1, label2, label5, label6"(不在文本中)
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 1,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+			{"label5", 0, []int{}},
+			{"label6", 0, []int{}},
+		},
+	})
+	docs, _ := indexer.LogicLookup(nil, false)
+	t.Error("error")
+	if docs != nil {
+		t.Error("error")
+	}
+}

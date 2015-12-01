@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/AlasdairF/Sort/Uint64"
 	"github.com/huichen/wukong/types"
 	"github.com/huichen/wukong/utils"
 	"log"
@@ -131,7 +132,7 @@ func (indexer *Indexer) AddDocument(document *types.DocumentIndex) {
 // 查找包含全部搜索键(AND操作)的文档
 // 当docIds不为nil时仅从docIds指定的文档中查找
 func (indexer *Indexer) Lookup(
-	tokens []string, labels []string, docIds map[uint64]bool, countDocsOnly bool) (docs []types.IndexedDocument, numDocs int) {
+	tokens []string, labels []string, docIds map[uint64]bool, countDocsOnly bool, logicExpression ...types.LogicExpression) (docs []types.IndexedDocument, numDocs int) {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
 	}
@@ -140,6 +141,11 @@ func (indexer *Indexer) Lookup(
 		return
 	}
 	numDocs = 0
+
+	if logicExpression != nil {
+
+		// final return
+	}
 
 	// 合并关键词和标签为搜索键
 	keywords := make([]string, len(tokens)+len(labels))
@@ -422,4 +428,150 @@ func (indexer *Indexer) RemoveDoc(docId uint64) {
 	delete(indexer.tableLock.docs, docId)
 	indexer.numDocuments--
 	indexer.tableLock.Unlock()
+}
+
+func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, LogicExpression ...types.LogicExpression) (docs []types.IndexedDocument, numDocs int) {
+	if LogicExpression == nil {
+		return
+	}
+
+	indexer.tableLock.RLock()
+	defer indexer.tableLock.RUnlock()
+	// 有效性检查, 不允许只出现逻辑非检索, 也不允许与或非都不存在
+	if len(LogicExpression[0].MustLabels) == 0 && len(LogicExpression[0].ShouldLabels) == 0 &&
+		len(LogicExpression[0].NotInLabels) >= 0 {
+		return
+	}
+
+	// MustTable中的搜索键检查
+	// 如果存在与搜索键， 则要求所有的与搜索键都有对应的反向表
+	MustTable := make([]*KeywordIndices, 0)
+	if len(LogicExpression[0].MustLabels) > 0 {
+		for _, keyword := range LogicExpression[0].MustLabels {
+			indices, found := indexer.tableLock.table[keyword]
+			if !found {
+				return
+			} else {
+				MustTable = append(MustTable, indices)
+			}
+		}
+	}
+
+	// 逻辑或搜索键检查
+	// 1. 如果存在逻辑或搜索键， 则至少有一个存在反向表
+	// 2. 逻辑或和逻辑与之间是与关系
+	ShouldTable := make([]*KeywordIndices, 0)
+	if len(LogicExpression[0].ShouldLabels) > 0 {
+		for _, keyword := range LogicExpression[0].ShouldLabels {
+			indices, found := indexer.tableLock.table[keyword]
+			if found {
+				ShouldTable = append(ShouldTable, indices)
+			}
+		}
+		if len(ShouldTable) == 0 {
+			// 如果存在逻辑或搜索键， 但是对应的反向表全部为空， 则返回
+			return
+		}
+	}
+
+	// 逻辑非中的搜索键检查
+	// 可以不存在逻辑非搜索（NotInTable为空）， 允许逻辑非搜索键对应的反向表为空
+	NotInTable := make([]*KeywordIndices, 0)
+	for _, keyword := range LogicExpression[0].NotInLabels {
+		indices, found := indexer.tableLock.table[keyword]
+		if found {
+			NotInTable = append(NotInTable, indices)
+		}
+	}
+
+	// 开始检索
+	numDocs = 0
+	if len(LogicExpression[0].MustLabels) > 0 {
+		// 如果存在逻辑与检索
+		for idx := indexer.getIndexLength(MustTable[0]) - 1; idx >= 0; idx-- {
+			baseDocId := indexer.getDocId(MustTable[0], idx)
+			if docIds != nil {
+				_, found := docIds[baseDocId]
+				if !found {
+					continue
+				}
+			}
+
+			mustFound := indexer.findInMustTable(MustTable[1:], baseDocId)
+			shouldFound := indexer.findInNotInTable(ShouldTable, baseDocId)
+			notInFound := indexer.findInNotInTable(NotInTable, baseDocId)
+
+			if mustFound && shouldFound && !notInFound {
+				indexedDoc := types.IndexedDocument{}
+				indexedDoc.DocId = baseDocId
+				if !countDocsOnly {
+					docs = append(docs, indexedDoc)
+				}
+				numDocs++
+			}
+		}
+	} else {
+		// 不存在逻辑与检索， 则必须存在逻辑或检索
+		// 这时进行求并集操作
+		docs, numDocs = indexer.unionTable(ShouldTable, NotInTable, countDocsOnly)
+	}
+	return
+}
+
+// 在逻辑与反向表中对docid进行查找， 若每个反向表都找到， 则返回true， 有一个找不到则返回false
+func (indexer *Indexer) findInMustTable(table []*KeywordIndices, docId uint64) bool {
+	for i := 0; i < len(table); i++ {
+		_, foundDocId := indexer.searchIndex(table[i],
+			0, indexer.getIndexLength(table[i])-1, docId)
+		if !foundDocId {
+			return false
+		}
+	}
+	return true
+}
+
+// 在逻辑或反向表中对docid进行查找， 若有一个找到则返回true， 都找不到则返回false
+// 这个逻辑和findInNotInTable逻辑相同， 故可以共用一个函数
+
+// 在逻辑非反向表中对docid进行查找， 若有一个找到则返回true， 都找不到则返回false
+// 如果table为空， 则返回false
+func (indexer *Indexer) findInNotInTable(table []*KeywordIndices, docId uint64) bool {
+	for i := 0; i < len(table); i++ {
+		_, foundDocId := indexer.searchIndex(table[i],
+			0, indexer.getIndexLength(table[i])-1, docId)
+		if foundDocId {
+			return true
+		}
+	}
+	return false
+}
+
+// 如果不存在与逻辑检索， 则需要对逻辑或反向表求并集
+// 先求差集再求并集， 可以减小内存占用
+// docid要保序
+func (indexer *Indexer) unionTable(table []*KeywordIndices, notInTable []*KeywordIndices, countDocsOnly bool) (
+	docs []types.IndexedDocument, numDocs int) {
+	docIds := make([]uint64, 0)
+	// 求并集
+	for i := 0; i < len(table); i++ {
+		for _, docid := range table[i].docIds {
+			if !indexer.findInNotInTable(notInTable, docid) {
+				docIds = append(docIds, docid)
+			}
+		}
+	}
+	// 排序
+	sortUint64.StableDesc(docIds)
+
+	numDocs = 0
+	for _, doc := range docIds {
+		indexedDoc := types.IndexedDocument{}
+		indexedDoc.DocId = doc
+		if !countDocsOnly {
+			docs = append(docs, indexedDoc)
+		}
+		numDocs++
+	}
+
+	return
 }
