@@ -43,3 +43,14 @@ type RankOptions struct {
 	// 最大输出的搜索结果数，为0时无限制
 	MaxOutputs int
 }
+
+type LogicExpression struct {
+	// 与查询， 必须都存在
+	MustLabels []string
+
+	// 或查询， 有一个存在即可
+	ShouldLabels []string
+
+	// 非查询， 不包含
+	NotInLabels []string
+}
