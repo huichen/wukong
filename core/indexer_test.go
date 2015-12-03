@@ -370,3 +370,267 @@ func TestLookupWithLocations(t *testing.T) {
 	docs, _ := indexer.Lookup([]string{"token2", "token3"}, []string{}, nil, false)
 	utils.Expect(t, "[[0 21] [28]]", docs[0].TokenLocations)
 }
+
+func TestLogicLookup(t *testing.T) {
+	var indexer Indexer
+	indexer.Init(types.IndexerInitOptions{IndexType: types.LocationsIndex})
+	// doc0 = "label1, label2, label3, label4"(不在文本中)
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 0,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+			{"label3", 0, []int{}},
+			{"label4", 0, []int{}},
+		},
+	})
+
+	// doc1 = "label1, label2, label5, label6"(不在文本中)
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 1,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+			{"label5", 0, []int{}},
+			{"label6", 0, []int{}},
+		},
+	})
+
+	// test null LogicExpression
+	empty := types.LogicExpression{}
+	docs, _ := indexer.LogicLookup(nil, false, empty)
+	if len(docs) != 0 {
+		t.Error("error")
+	}
+
+	// test only and
+	m := []string{"label1"}
+	lm := types.LogicExpression{MustLabels: m}
+	utils.Expect(t, "[1] [0] ", indexedDocIdsToString(indexer.LogicLookup(nil, false, lm)))
+
+	// test A && (B ||) = A && B
+	s := []string{"label2"}
+	ls := types.LogicExpression{
+		MustLabels:   m,
+		ShouldLabels: s,
+	}
+	utils.Expect(t, "[1] [0] ", indexedDocIdsToString(indexer.LogicLookup(nil, false, ls)))
+
+	// test A && (B||) && -C = A && B && -C : ("-" represent logic NOT)
+	n := []string{"label5"}
+	lmsn := types.LogicExpression{
+		MustLabels:   m,
+		ShouldLabels: s,
+		NotInLabels:  n,
+	}
+	utils.Expect(t, "[0] ", indexedDocIdsToString(indexer.LogicLookup(nil, false, lmsn)))
+
+	// test: (A || B)
+	a := []string{"label3", "label5"}
+	lor := types.LogicExpression{
+		ShouldLabels: a,
+	}
+	utils.Expect(t, "[1] [0] ", indexedDocIdsToString(indexer.LogicLookup(nil, false, lor)))
+
+	// test: -B
+	b := []string{"label1"}
+	lnot := types.LogicExpression{
+		NotInLabels: b,
+	}
+	utils.Expect(t, "", indexedDocIdsToString(indexer.LogicLookup(nil, false, lnot)))
+
+	// test: (A || B) && -C
+	lornot := types.LogicExpression{
+		ShouldLabels: a,
+		NotInLabels:  b,
+	}
+	utils.Expect(t, "", indexedDocIdsToString(indexer.LogicLookup(nil, false, lornot)))
+}
+
+func TestLookupWithLogicExpression(t *testing.T) {
+	var indexer Indexer
+	indexer.Init(types.IndexerInitOptions{IndexType: types.LocationsIndex})
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 1,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 2,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label3", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 5,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label2", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 6,
+		Keywords: []types.KeywordIndex{
+			{"label3", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 7,
+		Keywords: []types.KeywordIndex{
+			{"label4", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 9,
+		Keywords: []types.KeywordIndex{
+			{"label1", 0, []int{}},
+			{"label4", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 10,
+		Keywords: []types.KeywordIndex{
+			{"label2", 0, []int{}},
+			{"label4", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 13,
+		Keywords: []types.KeywordIndex{
+			{"label3", 0, []int{}},
+			{"label4", 0, []int{}},
+		},
+	})
+
+	indexer.AddDocument(&types.DocumentIndex{
+		DocId: 18,
+		Keywords: []types.KeywordIndex{
+			{"label4", 0, []int{}},
+		},
+	})
+
+	// overview of inverted index:
+	// label1: 1, 2, 5, 9
+	// label2: 1, 5, 10
+	// label3: 2, 6, 13
+	// label4: 7, 9, 10, 13, 18
+
+	// test not exists
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels: []string{"label9999"},
+	})))
+
+	// test without logicexpression
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false)))
+
+	// test not permission: -A && -B
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		NotInLabels: []string{"label1", "label2"},
+	})))
+
+	// test exists: A
+	utils.Expect(t, "[9] [5] [2] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels: []string{"label1"},
+	})))
+
+	// test exists: A && B
+	utils.Expect(t, "[9] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels: []string{"label1", "label4"},
+	})))
+
+	utils.Expect(t, "[5] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels: []string{"label1", "label2"},
+	})))
+
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels: []string{"label3", "label2"},
+	})))
+
+	// test exists: A && (B ||)
+	utils.Expect(t, "[5] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1"},
+		ShouldLabels: []string{"label2"},
+	})))
+
+	// test exists: A && (B ||) && -C
+	utils.Expect(t, "[5] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1"},
+		ShouldLabels: []string{"label2"},
+		NotInLabels:  []string{"label3"},
+	})))
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1"},
+		ShouldLabels: []string{"label2"},
+		NotInLabels:  []string{"label1"},
+	})))
+
+	// test exists: A && (B || C)
+	utils.Expect(t, "[9] [5] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1"},
+		ShouldLabels: []string{"label2", "label4"},
+	})))
+
+	// test exists: A && (B || C) && D
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1", "label3"},
+		ShouldLabels: []string{"label2", "label4"},
+	})))
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1", "label2"},
+		ShouldLabels: []string{"label3", "label4"},
+	})))
+
+	// test exists: A && (B || C || D)
+	utils.Expect(t, "[9] [5] [2] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label1"},
+		ShouldLabels: []string{"label2", "label4", "label3"},
+	})))
+
+	// test exists: (A || B || C || D)
+	utils.Expect(t, "[18] [13] [10] [9] [7] [6] [5] [2] [1] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		ShouldLabels: []string{"label2", "label4", "label3", "label1"},
+	})))
+
+	// test exists: (B || C || D) && -A
+	utils.Expect(t, "[18] [13] [10] [7] [6] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		ShouldLabels: []string{"label2", "label4", "label3"},
+		NotInLabels:  []string{"label1"},
+	})))
+
+	// test exists: (B || C || D) && -A with not exists label9, label6
+	utils.Expect(t, "[18] [13] [10] [7] [6] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		ShouldLabels: []string{"label2", "label4", "label3", "label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	})))
+
+	// test exists: (B || C || D) && -A with not exists label9, label6
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		ShouldLabels: []string{"label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	})))
+
+	// test exists: (B && C) && -A with not exists label9, label6
+	utils.Expect(t, "[10] ", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label4", "label2"},
+		ShouldLabels: []string{"label2", "label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	})))
+
+	// test exists: (B && C) && -A with not exists label9, label6, label8
+	utils.Expect(t, "", indexedDocIdsToString(indexer.Lookup([]string{}, []string{}, nil, false, types.LogicExpression{
+		MustLabels:   []string{"label4", "label8"},
+		ShouldLabels: []string{"label2", "label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	})))
+
+}

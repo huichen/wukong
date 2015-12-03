@@ -318,6 +318,7 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 		countDocsOnly:       request.CountDocsOnly,
 		tokens:              tokens,
 		labels:              request.Labels,
+		logicExpression:     request.LogicExpression,
 		docIds:              request.DocIds,
 		options:             rankOptions,
 		rankerReturnChannel: rankerReturnChannel,
