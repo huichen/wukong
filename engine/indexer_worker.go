@@ -47,7 +47,7 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 
 		if request.countDocsOnly {
 			request.rankerReturnChannel <- rankerReturnRequest{numDocs: numDocs}
-			continue
+			return
 		}
 
 		if len(docs) == 0 {
