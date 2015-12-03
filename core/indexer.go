@@ -142,9 +142,10 @@ func (indexer *Indexer) Lookup(
 	}
 	numDocs = 0
 
-	if logicExpression != nil {
-
-		// final return
+	if logicExpression != nil && len(logicExpression) > 0 && (len(logicExpression[0].MustLabels) > 0 || len(logicExpression[0].ShouldLabels) > 0) &&
+		len(logicExpression[0].NotInLabels) >= 0 {
+		docs, numDocs = indexer.LogicLookup(docIds, countDocsOnly, logicExpression[0])
+		return
 	}
 
 	// 合并关键词和标签为搜索键
@@ -430,24 +431,20 @@ func (indexer *Indexer) RemoveDoc(docId uint64) {
 	indexer.tableLock.Unlock()
 }
 
-func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, LogicExpression ...types.LogicExpression) (docs []types.IndexedDocument, numDocs int) {
-	if LogicExpression == nil {
-		return
-	}
-
+func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, LogicExpression types.LogicExpression) (docs []types.IndexedDocument, numDocs int) {
 	indexer.tableLock.RLock()
 	defer indexer.tableLock.RUnlock()
 	// 有效性检查, 不允许只出现逻辑非检索, 也不允许与或非都不存在
-	if len(LogicExpression[0].MustLabels) == 0 && len(LogicExpression[0].ShouldLabels) == 0 &&
-		len(LogicExpression[0].NotInLabels) >= 0 {
+	if len(LogicExpression.MustLabels) == 0 && len(LogicExpression.ShouldLabels) == 0 &&
+		len(LogicExpression.NotInLabels) >= 0 {
 		return
 	}
 
 	// MustTable中的搜索键检查
 	// 如果存在与搜索键， 则要求所有的与搜索键都有对应的反向表
 	MustTable := make([]*KeywordIndices, 0)
-	if len(LogicExpression[0].MustLabels) > 0 {
-		for _, keyword := range LogicExpression[0].MustLabels {
+	if len(LogicExpression.MustLabels) > 0 {
+		for _, keyword := range LogicExpression.MustLabels {
 			indices, found := indexer.tableLock.table[keyword]
 			if !found {
 				return
@@ -461,8 +458,8 @@ func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, 
 	// 1. 如果存在逻辑或搜索键， 则至少有一个存在反向表
 	// 2. 逻辑或和逻辑与之间是与关系
 	ShouldTable := make([]*KeywordIndices, 0)
-	if len(LogicExpression[0].ShouldLabels) > 0 {
-		for _, keyword := range LogicExpression[0].ShouldLabels {
+	if len(LogicExpression.ShouldLabels) > 0 {
+		for _, keyword := range LogicExpression.ShouldLabels {
 			indices, found := indexer.tableLock.table[keyword]
 			if found {
 				ShouldTable = append(ShouldTable, indices)
@@ -477,7 +474,7 @@ func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, 
 	// 逻辑非中的搜索键检查
 	// 可以不存在逻辑非搜索（NotInTable为空）， 允许逻辑非搜索键对应的反向表为空
 	NotInTable := make([]*KeywordIndices, 0)
-	for _, keyword := range LogicExpression[0].NotInLabels {
+	for _, keyword := range LogicExpression.NotInLabels {
 		indices, found := indexer.tableLock.table[keyword]
 		if found {
 			NotInTable = append(NotInTable, indices)
@@ -486,7 +483,7 @@ func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, 
 
 	// 开始检索
 	numDocs = 0
-	if len(LogicExpression[0].MustLabels) > 0 {
+	if len(LogicExpression.MustLabels) > 0 {
 		// 如果存在逻辑与检索
 		for idx := indexer.getIndexLength(MustTable[0]) - 1; idx >= 0; idx-- {
 			baseDocId := indexer.getDocId(MustTable[0], idx)
@@ -498,7 +495,7 @@ func (indexer *Indexer) LogicLookup(docIds map[uint64]bool, countDocsOnly bool, 
 			}
 
 			mustFound := indexer.findInMustTable(MustTable[1:], baseDocId)
-			shouldFound := indexer.findInNotInTable(ShouldTable, baseDocId)
+			shouldFound := indexer.findInShouldTable(ShouldTable, baseDocId)
 			notInFound := indexer.findInNotInTable(NotInTable, baseDocId)
 
 			if mustFound && shouldFound && !notInFound {
@@ -531,7 +528,22 @@ func (indexer *Indexer) findInMustTable(table []*KeywordIndices, docId uint64) b
 }
 
 // 在逻辑或反向表中对docid进行查找， 若有一个找到则返回true， 都找不到则返回false
-// 这个逻辑和findInNotInTable逻辑相同， 故可以共用一个函数
+// 如果table为空， 则返回true
+func (indexer *Indexer) findInShouldTable(table []*KeywordIndices, docId uint64) bool {
+	for i := 0; i < len(table); i++ {
+		_, foundDocId := indexer.searchIndex(table[i],
+			0, indexer.getIndexLength(table[i])-1, docId)
+		if foundDocId {
+			return true
+		}
+	}
+
+	if len(table) == 0 {
+		return true
+	} else {
+		return false
+	}
+}
 
 // 在逻辑非反向表中对docid进行查找， 若有一个找到则返回true， 都找不到则返回false
 // 如果table为空， 则返回false
@@ -556,7 +568,16 @@ func (indexer *Indexer) unionTable(table []*KeywordIndices, notInTable []*Keywor
 	for i := 0; i < len(table); i++ {
 		for _, docid := range table[i].docIds {
 			if !indexer.findInNotInTable(notInTable, docid) {
-				docIds = append(docIds, docid)
+				found := false
+				for _, v := range docIds {
+					if v == docid {
+						found = true
+						break
+					}
+				}
+				if !found {
+					docIds = append(docIds, docid)
+				}
 			}
 		}
 	}

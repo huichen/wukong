@@ -17,6 +17,7 @@ type indexerLookupRequest struct {
 	options             types.RankOptions
 	rankerReturnChannel chan rankerReturnRequest
 	orderless           bool
+	logicExpression     types.LogicExpression
 }
 
 type indexerRemoveDocRequest struct {
@@ -40,9 +41,9 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 		var docs []types.IndexedDocument
 		var numDocs int
 		if request.docIds == nil {
-			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil, request.countDocsOnly)
+			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, nil, request.countDocsOnly, request.logicExpression)
 		} else {
-			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, request.docIds, request.countDocsOnly)
+			docs, numDocs = engine.indexers[shard].Lookup(request.tokens, request.labels, request.docIds, request.countDocsOnly, request.logicExpression)
 		}
 
 		if request.countDocsOnly {

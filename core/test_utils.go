@@ -32,3 +32,11 @@ func scoredDocsToString(docs []types.ScoredDocument) (output string) {
 	}
 	return
 }
+
+func indexedDocIdsToString(docs []types.IndexedDocument, numDocs int) (output string) {
+	for _, doc := range docs {
+		output += fmt.Sprintf("[%d] ",
+			doc.DocId)
+	}
+	return
+}

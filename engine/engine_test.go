@@ -424,3 +424,121 @@ func TestSearchWithin(t *testing.T) {
 	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
 	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
 }
+
+type RankByDocid struct {
+}
+
+func (rule RankByDocid) Score(
+	doc types.IndexedDocument, fields interface{}) []float32 {
+	if doc.DocId < 0 {
+		return []float32{}
+	}
+	return []float32{float32(doc.DocId) * 1.0}
+}
+
+func TestEngineLogicalSearch(t *testing.T) {
+	// init engine
+	searcherEngineOptions :=
+		types.EngineInitOptions{
+			NotUsingSegmenter: true,
+			DefaultRankOptions: &types.RankOptions{
+				OutputOffset:    0,
+				MaxOutputs:      10,
+				ScoringCriteria: &RankByDocid{},
+			},
+			IndexerInitOptions: &types.IndexerInitOptions{
+				IndexType: types.DocIdsIndex,
+			},
+			UsePersistentStorage: false,
+			NumShards:            2,
+		}
+	var engine Engine
+	engine.Init(searcherEngineOptions)
+
+	// add documents
+	engine.IndexDocument(1,
+		types.DocumentIndexData{
+			Labels: []string{"label1", "label2"},
+		})
+	engine.IndexDocument(2,
+		types.DocumentIndexData{
+			Labels: []string{"label1", "label3"},
+		})
+	engine.IndexDocument(5,
+		types.DocumentIndexData{
+			Labels: []string{"label1", "label2"},
+		})
+	engine.IndexDocument(6,
+		types.DocumentIndexData{
+			Labels: []string{"label3"},
+		})
+	engine.IndexDocument(7,
+		types.DocumentIndexData{
+			Labels: []string{"label4"},
+		})
+	engine.IndexDocument(9,
+		types.DocumentIndexData{
+			Labels: []string{"label1", "label4"},
+		})
+	engine.IndexDocument(10,
+		types.DocumentIndexData{
+			Labels: []string{"label2", "label4"},
+		})
+	engine.IndexDocument(13,
+		types.DocumentIndexData{
+			Labels: []string{"label3", "label4"},
+		})
+	engine.IndexDocument(18,
+		types.DocumentIndexData{
+			Labels: []string{"label4"},
+		})
+
+	// do search
+	outputs := engine.Search(types.SearchRequest{Labels: []string{"label3"}})
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		MustLabels:   []string{"label4", "label2"},
+		ShouldLabels: []string{"label2", "label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	}},
+	)
+	utils.Expect(t, "[10] ", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		MustLabels: []string{"label9999"},
+	}},
+	)
+	utils.Expect(t, "", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		NotInLabels: []string{"label1", "label2"},
+	}},
+	)
+	utils.Expect(t, "", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{Labels: []string{"label1"}})
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		MustLabels: []string{"label1"},
+	}},
+	)
+	utils.Expect(t, "[9] [5] [2] [1] ", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		MustLabels: []string{"label1", "label4"},
+	}},
+	)
+	utils.Expect(t, "[9] ", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		MustLabels: []string{"label1", "label2"},
+	}},
+	)
+	utils.Expect(t, "[5] [1] ", indexedDocIdsToString(outputs))
+
+	outputs = engine.Search(types.SearchRequest{LogicExpression: types.LogicExpression{
+		ShouldLabels: []string{"label2", "label4", "label3", "label6"},
+		NotInLabels:  []string{"label1", "label9"},
+	}},
+	)
+	utils.Expect(t, "[18] [13] [10] [7] [6] ", indexedDocIdsToString(outputs))
+}
