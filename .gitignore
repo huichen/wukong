@@ -1,0 +1,7 @@
+# Ignore all swp files
+*.swo
+*.swp
+*~
+
+# Ignore weibo data file
+testdata/weibo_data.txt

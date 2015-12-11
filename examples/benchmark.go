@@ -39,6 +39,7 @@ var (
 	cpuprofile                = flag.String("cpuprofile", "", "处理器profile文件")
 	memprofile                = flag.String("memprofile", "", "内存profile文件")
 	num_repeat_text           = flag.Int("num_repeat_text", 10, "文本重复加入多少次")
+	num_delete_docs           = flag.Int("num_delete_docs", 1000, "测试删除文档的个数")
 	index_type                = flag.Int("index_type", types.DocIdsIndex, "索引类型")
 	use_persistent            = flag.Bool("use_persistent", false, "是否使用持久存储")
 	persistent_storage_folder = flag.String("persistent_storage_folder", "benchmark.persistent", "持久存储数据库保存的目录")
@@ -123,7 +124,7 @@ func main() {
 	for i := 0; i < *num_repeat_text; i++ {
 		for _, line := range lines {
 			searcher.IndexDocument(docId, types.DocumentIndexData{
-				Content: line})
+				Content: line}, false)
 			docId++
 			if docId-docId/1000000*1000000 == 0 {
 				log.Printf("已索引%d百万文档", docId/1000000)
@@ -150,28 +151,39 @@ func main() {
 		defer f.Close()
 	}
 
-	// 记录时间
+	// 记录时间并计算删除索引时间
 	t2 := time.Now()
+	for i := 1; i <= *num_delete_docs; i++ {
+		searcher.RemoveDocument(uint64(i), false)
+	}
+	searcher.FlushIndex()
+	t3 := time.Now()
+	log.Printf("删除 %d 条索引花费时间 %v", *num_delete_docs, t3.Sub(t2))
 
 	done := make(chan bool)
+	recordResponseLength := make(map[string]int)
 	for iThread := 0; iThread < numQueryThreads; iThread++ {
-		go search(done)
+		go search(done, recordResponseLength)
 	}
 	for iThread := 0; iThread < numQueryThreads; iThread++ {
 		<-done
 	}
+	// 测试搜索结果输出，因为不同 case 的 docId 对应不上，所以只测试总数
+	for keyword, count := range recordResponseLength {
+		log.Printf("关键词 [%s] 共搜索到 %d 个相关文档", keyword, count)
+	}
 
 	// 记录时间并计算分词速度
-	t3 := time.Now()
+	t4 := time.Now()
 	log.Printf("搜索平均响应时间 %v 毫秒",
-		t3.Sub(t2).Seconds()*1000/float64(numRepeatQuery*len(searchQueries)))
+		t4.Sub(t3).Seconds()*1000/float64(numRepeatQuery*len(searchQueries)))
 	log.Printf("搜索吞吐量每秒 %v 次查询",
 		float64(numRepeatQuery*numQueryThreads*len(searchQueries))/
-			t3.Sub(t2).Seconds())
+			t4.Sub(t3).Seconds())
 
 	if *use_persistent {
 		searcher.Close()
-		t4 := time.Now()
+		t5 := time.Now()
 		searcher1 := engine.Engine{}
 		searcher1.Init(types.EngineInitOptions{
 			SegmenterDictionaries: *dictionaries,
@@ -186,8 +198,8 @@ func main() {
 			PersistentStorageShards: *persistent_storage_shards,
 		})
 		defer searcher1.Close()
-		t5 := time.Now()
-		t := t5.Sub(t4).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
+		t6 := time.Now()
+		t := t6.Sub(t5).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
 		log.Print("从持久存储加入的索引总数", searcher1.NumTokenIndexAdded())
 		log.Printf("从持久存储建立索引花费时间 %v 秒", t)
 		log.Printf("从持久存储建立索引速度每秒添加 %f 百万个索引",
@@ -197,10 +209,13 @@ func main() {
 	//os.RemoveAll(*persistent_storage_folder)
 }
 
-func search(ch chan bool) {
+func search(ch chan bool, record map[string]int) {
 	for i := 0; i < numRepeatQuery; i++ {
 		for _, query := range searchQueries {
-			searcher.Search(types.SearchRequest{Text: query})
+			output := searcher.Search(types.SearchRequest{Text: query})
+			if _, found := record[query]; !found {
+				record[query] = len(output.Docs)
+			}
 		}
 	}
 	ch <- true
