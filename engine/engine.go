@@ -225,8 +225,8 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData) {
 	engine.internalIndexDocument(docId, data)
 
-	hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage {
+		hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 		engine.persistentStorageIndexDocumentChannels[hash] <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
 	}
 }
