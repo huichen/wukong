@@ -225,7 +225,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData) {
 	engine.internalIndexDocument(docId, data)
 
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+	hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage {
 		engine.persistentStorageIndexDocumentChannels[hash] <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
 	}
@@ -237,7 +237,7 @@ func (engine *Engine) internalIndexDocument(docId uint64, data types.DocumentInd
 	}
 
 	atomic.AddUint64(&engine.numIndexingRequests, 1)
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d%s", docId, data.Content)))
+	hash := murmur.Murmur3([]byte(fmt.Sprintf("%d%s", docId, data.Content)))
 	engine.segmenterChannel <- segmenterRequest{
 		docId: docId, hash: hash, data: data}
 }
@@ -260,7 +260,7 @@ func (engine *Engine) RemoveDocument(docId uint64) {
 
 	if engine.initOptions.UsePersistentStorage {
 		// 从数据库中删除
-		hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+		hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 		go engine.persistentStorageRemoveDocumentWorker(docId, hash)
 	}
 }
