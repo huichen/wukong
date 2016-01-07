@@ -277,6 +277,19 @@ func (engine *Engine) FlushIndex() {
 	}
 }
 
+// 获取文本的分词结果
+func (engine *Engine) Tokens(text []byte) (tokens []string) {
+	querySegments := engine.segmenter.Segment(text)
+	for _, s := range querySegments {
+		token := s.Token().Text()
+		if !engine.stopTokens.IsStopToken(token) {
+			tokens = append(tokens, token)
+		}
+	}
+
+	return tokens
+}
+
 // 查找满足搜索条件的文档，此函数线程安全
 func (engine *Engine) Search(request types.SearchRequest) (output types.SearchResponse) {
 	if !engine.initialized {
@@ -296,13 +309,7 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 	// 收集关键词
 	tokens := []string{}
 	if request.Text != "" {
-		querySegments := engine.segmenter.Segment([]byte(request.Text))
-		for _, s := range querySegments {
-			token := s.Token().Text()
-			if !engine.stopTokens.IsStopToken(token) {
-				tokens = append(tokens, s.Token().Text())
-			}
-		}
+		tokens = engine.Tokens([]byte(request.Text))
 	} else {
 		for _, t := range request.Tokens {
 			tokens = append(tokens, t)
