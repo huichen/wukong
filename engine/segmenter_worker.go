@@ -41,10 +41,16 @@ func (engine *Engine) segmenterWorker() {
 		for _, label := range request.data.Labels {
 			if !engine.initOptions.NotUsingSegmenter {
 				if !engine.stopTokens.IsStopToken(label) {
-					tokensMap[label] = []int{}
+					//当正文中已存在关键字时，若不判断，位置信息将会丢失
+					if _, ok := tokensMap[label]; !ok {
+						tokensMap[label] = []int{}
+					}
 				}
 			} else {
-				tokensMap[label] = []int{}
+				//当正文中已存在关键字时，若不判断，位置信息将会丢失
+				if _, ok := tokensMap[label]; !ok {
+					tokensMap[label] = []int{}
+				}
 			}
 		}
 

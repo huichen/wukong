@@ -1,11 +1,12 @@
 package core
 
 import (
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"log"
 	"math"
 	"sync"
+
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 )
 
 // 索引器
@@ -229,7 +230,8 @@ func (indexer *Indexer) Lookup(
 						})
 					}
 					numDocs++
-					break
+					//当某个关键字对应多个文档且有lable关键字存在时，若直接break,将会丢失相当一部分搜索结果
+					continue
 				}
 
 				// 计算搜索键在文档中的紧邻距离
