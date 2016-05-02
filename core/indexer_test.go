@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/faberliu/wukong/engine"
+	"github.com/huichen/wukong/engine"
 	"github.com/huichen/wukong/types"
 	"github.com/huichen/wukong/utils"
 )
@@ -380,7 +380,7 @@ func TestLookupWithLocations1(t *testing.T) {
 		Content string
 		Labels  []string
 	}
-	searcher := engine.Engine{}
+
 	datas := make([]Data, 0)
 
 	data0 := Data{Id: 0, Content: "此次百度收购将成中国互联网最大并购", Labels: []string{"百度", "中国"}}
@@ -399,19 +399,34 @@ func TestLookupWithLocations1(t *testing.T) {
 	datas = append(datas, data4)
 
 	// 初始化
-	searcher.Init(types.EngineInitOptions{
+	searcher_locations := engine.Engine{}
+	searcher_locations.Init(types.EngineInitOptions{
 		SegmenterDictionaries: "../data/dictionary.txt",
 		IndexerInitOptions: &types.IndexerInitOptions{
 			IndexType: types.LocationsIndex,
 		},
 	})
-	defer searcher.Close()
+	defer searcher_locations.Close()
 	for _, data := range datas {
-		searcher.IndexDocument(uint64(data.Id), types.DocumentIndexData{Content: data.Content, Labels: data.Labels})
+		searcher_locations.IndexDocument(uint64(data.Id), types.DocumentIndexData{Content: data.Content, Labels: data.Labels})
 	}
-	searcher.FlushIndex()
-	res := searcher.Search(types.SearchRequest{Text: "百度"})
-	if res.NumDocs != 5 {
-		t.Errorf("期待的搜索结果个数=\"%d\", 实际=\"%d\"", 5, res.NumDocs)
+	searcher_locations.FlushIndex()
+	res_locations := searcher_locations.Search(types.SearchRequest{Text: "百度"})
+
+	searcher_docids := engine.Engine{}
+	searcher_docids.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../data/dictionary.txt",
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.DocIdsIndex,
+		},
+	})
+	defer searcher_docids.Close()
+	for _, data := range datas {
+		searcher_docids.IndexDocument(uint64(data.Id), types.DocumentIndexData{Content: data.Content, Labels: data.Labels})
+	}
+	searcher_docids.FlushIndex()
+	res_docids := searcher_docids.Search(types.SearchRequest{Text: "百度"})
+	if res_docids.NumDocs != res_locations.NumDocs {
+		t.Errorf("期待的搜索结果个数=\"%d\", 实际=\"%d\"", res_docids.NumDocs, res_locations.NumDocs)
 	}
 }
