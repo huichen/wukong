@@ -90,7 +90,6 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 
 	// 初始化分词器通道
 	engine.segmenterChannel = make(
-		//chan segmenterRequest)
 		chan segmenterRequest, options.NumSegmenterThreads)
 
 	// 初始化索引器通道
@@ -102,11 +101,9 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 		[]chan indexerLookupRequest, options.NumShards)
 	for shard := 0; shard < options.NumShards; shard++ {
 		engine.indexerAddDocChannels[shard] = make(
-			//chan indexerAddDocumentRequest)
 			chan indexerAddDocumentRequest,
 			options.IndexerBufferLength)
 		engine.indexerRemoveDocChannels[shard] = make(
-			//chan indexerRemoveDocRequest)
 			chan indexerRemoveDocRequest,
 			options.IndexerBufferLength)
 		engine.indexerLookupChannels[shard] = make(
