@@ -222,8 +222,9 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 // 将文档加入索引
 //
 // 输入参数：
-//  docId	标识文档编号，必须唯一，docId == 0 表示非法文档（用于强制刷新索引），[1, +oo) 表示合法文档
-//  data	见DocumentIndexData注释
+//  docId	      标识文档编号，必须唯一，docId == 0 表示非法文档（用于强制刷新索引），[1, +oo) 表示合法文档
+//  data	      见DocumentIndexData注释
+//  forceUpdate 是否强制刷新 cache，如果设为 true，则尽快添加到索引，否则等待 cache 满之后一次全量添加
 //
 // 注意：
 //      1. 这个函数是线程安全的，请尽可能并发调用以提高索引速度
@@ -258,7 +259,8 @@ func (engine *Engine) internalIndexDocument(
 // 将文档从索引中删除
 //
 // 输入参数：
-//  docId	标识文档编号，必须唯一，docId == 0 表示非法文档（用于强制刷新索引），[1, +oo) 表示合法文档
+//  docId	      标识文档编号，必须唯一，docId == 0 表示非法文档（用于强制刷新索引），[1, +oo) 表示合法文档
+//  forceUpdate 是否强制刷新 cache，如果设为 true，则尽快删除索引，否则等待 cache 满之后一次全量删除
 //
 // 注意：
 //      1. 这个函数是线程安全的，请尽可能并发调用以提高索引速度
