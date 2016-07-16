@@ -42,3 +42,29 @@ type IndexedDocument struct {
 	// 仅当索引类型为LocationsIndex时返回有效值。
 	TokenLocations [][]int
 }
+
+// 方便批量加入文档索引
+type DocumentsIndex []*DocumentIndex
+
+func (docs DocumentsIndex) Len() int {
+	return len(docs)
+}
+func (docs DocumentsIndex) Swap(i, j int) {
+	docs[i], docs[j] = docs[j], docs[i]
+}
+func (docs DocumentsIndex) Less(i, j int) bool {
+	return docs[i].DocId < docs[j].DocId
+}
+
+// 方便批量删除文档索引
+type DocumentsId []uint64
+
+func (docs DocumentsId) Len() int {
+	return len(docs)
+}
+func (docs DocumentsId) Swap(i, j int) {
+	docs[i], docs[j] = docs[j], docs[i]
+}
+func (docs DocumentsId) Less(i, j int) bool {
+	return docs[i] < docs[j]
+}

@@ -5,16 +5,25 @@ import (
 )
 
 type segmenterRequest struct {
-	docId uint64
-	hash  uint32
-	data  types.DocumentIndexData
+	docId       uint64
+	hash        uint32
+	data        types.DocumentIndexData
+	forceUpdate bool
 }
 
 func (engine *Engine) segmenterWorker() {
 	for {
 		request := <-engine.segmenterChannel
-		shard := engine.getShard(request.hash)
+		if request.docId == 0 {
+			if request.forceUpdate {
+				for i := 0; i < engine.initOptions.NumShards; i++ {
+					engine.indexerAddDocChannels[i] <- indexerAddDocumentRequest{forceUpdate: true}
+				}
+			}
+			continue
+		}
 
+		shard := engine.getShard(request.hash)
 		tokensMap := make(map[string][]int)
 		numTokens := 0
 		if !engine.initOptions.NotUsingSegmenter && request.data.Content != "" {
@@ -54,6 +63,7 @@ func (engine *Engine) segmenterWorker() {
 				TokenLength: float32(numTokens),
 				Keywords:    make([]types.KeywordIndex, len(tokensMap)),
 			},
+			forceUpdate: request.forceUpdate,
 		}
 		iTokens := 0
 		for k, v := range tokensMap {
@@ -64,7 +74,16 @@ func (engine *Engine) segmenterWorker() {
 				Starts:    v}
 			iTokens++
 		}
-		engine.indexerAddDocumentChannels[shard] <- indexerRequest
+
+		engine.indexerAddDocChannels[shard] <- indexerRequest
+		if request.forceUpdate {
+			for i := 0; i < engine.initOptions.NumShards; i++ {
+				if i == shard {
+					continue
+				}
+				engine.indexerAddDocChannels[i] <- indexerAddDocumentRequest{forceUpdate: true}
+			}
+		}
 		rankerRequest := rankerAddDocRequest{
 			docId: request.docId, fields: request.data.Fields}
 		engine.rankerAddDocChannels[shard] <- rankerRequest

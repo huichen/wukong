@@ -97,7 +97,7 @@ func TestRankWithCriteria(t *testing.T) {
 	utils.Expect(t, "[1 [25300 ]] [3 [17300 ]] ", scoredDocsToString(scoredDocs))
 }
 
-func TestRemoveDocument(t *testing.T) {
+func TestRemoveDoc(t *testing.T) {
 	var ranker Ranker
 	ranker.Init()
 	ranker.AddDoc(1, DummyScoringFields{

@@ -6,7 +6,8 @@ import (
 )
 
 type indexerAddDocumentRequest struct {
-	document *types.DocumentIndex
+	document    *types.DocumentIndex
+	forceUpdate bool
 }
 
 type indexerLookupRequest struct {
@@ -20,16 +21,35 @@ type indexerLookupRequest struct {
 }
 
 type indexerRemoveDocRequest struct {
-	docId uint64
+	docId       uint64
+	forceUpdate bool
 }
 
 func (engine *Engine) indexerAddDocumentWorker(shard int) {
 	for {
-		request := <-engine.indexerAddDocumentChannels[shard]
-		engine.indexers[shard].AddDocument(request.document)
-		atomic.AddUint64(&engine.numTokenIndexAdded,
-			uint64(len(request.document.Keywords)))
-		atomic.AddUint64(&engine.numDocumentsIndexed, 1)
+		request := <-engine.indexerAddDocChannels[shard]
+		engine.indexers[shard].AddDocumentToCache(request.document, request.forceUpdate)
+		if request.document != nil {
+			atomic.AddUint64(&engine.numTokenIndexAdded,
+				uint64(len(request.document.Keywords)))
+			atomic.AddUint64(&engine.numDocumentsIndexed, 1)
+		}
+		if request.forceUpdate {
+			atomic.AddUint64(&engine.numDocumentsForceUpdated, 1)
+		}
+	}
+}
+
+func (engine *Engine) indexerRemoveDocWorker(shard int) {
+	for {
+		request := <-engine.indexerRemoveDocChannels[shard]
+		engine.indexers[shard].RemoveDocumentToCache(request.docId, request.forceUpdate)
+		if request.docId != 0 {
+			atomic.AddUint64(&engine.numDocumentsRemoved, 1)
+		}
+		if request.forceUpdate {
+			atomic.AddUint64(&engine.numDocumentsForceUpdated, 1)
+		}
 	}
 }
 
@@ -77,12 +97,5 @@ func (engine *Engine) indexerLookupWorker(shard int) {
 			rankerReturnChannel: request.rankerReturnChannel,
 		}
 		engine.rankerRankChannels[shard] <- rankerRequest
-	}
-}
-
-func (engine *Engine) indexerRemoveDocWorker(shard int) {
-	for {
-		request := <-engine.indexerRemoveDocChannels[shard]
-		engine.indexers[shard].RemoveDoc(request.docId)
 	}
 }
