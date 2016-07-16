@@ -17,7 +17,7 @@ type Indexer struct {
 	tableLock struct {
 		sync.RWMutex
 		table     map[string]*KeywordIndices
-		docsState map[uint64]int // 0: 存在于索引中，1: 等待删除，2: 等待加入
+		docsState map[uint64]int // nil: 表示无状态记录，0: 存在于索引中，1: 等待删除，2: 等待加入
 	}
 	addCacheLock struct {
 		sync.RWMutex
@@ -45,9 +45,6 @@ type Indexer struct {
 
 // 反向索引表的一行，收集了一个搜索键出现的所有文档，按照DocId从小到大排序。
 type KeywordIndices struct {
-	// 用于标记在 docIds[] 进行批量加入索引时二分查找的下界
-	lowerBound int
-
 	// 下面的切片是否为空，取决于初始化时IndexType的值
 	docIds      []uint64  // 全部类型都有
 	frequencies []float32 // IndexType == FrequenciesIndex
@@ -97,6 +94,7 @@ func (indexer *Indexer) AddDocumentToCache(document *types.DocumentIndex, forceU
 		for i := 0; i < indexer.addCacheLock.addCachePointer; i++ {
 			docIndex := indexer.addCacheLock.addCache[i]
 			if docState, ok := indexer.tableLock.docsState[docIndex.DocId]; ok && docState == 0 {
+				// ok && docState == 0 表示存在于索引中，需先删除再添加
 				if position != i {
 					indexer.addCacheLock.addCache[position], indexer.addCacheLock.addCache[i] =
 						indexer.addCacheLock.addCache[i], indexer.addCacheLock.addCache[position]
@@ -110,13 +108,14 @@ func (indexer *Indexer) AddDocumentToCache(document *types.DocumentIndex, forceU
 				indexer.numDocuments--
 				position++
 			} else if !(ok && docState == 1) {
-				// ok && docState == 1 表示等待删除或者删除当前 doc
+				// ok && docState == 1 表示等待删除
 				indexer.tableLock.docsState[docIndex.DocId] = 2
 			}
 		}
 
 		indexer.tableLock.Unlock()
 		if indexer.RemoveDocumentToCache(0, forceUpdate) {
+			// 只有当存在于索引表中的文档已被删除，其才可以重新加入到索引表中
 			position = 0
 		}
 
@@ -138,9 +137,7 @@ func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
 
 	indexer.tableLock.Lock()
 	defer indexer.tableLock.Unlock()
-	for _, indices := range indexer.tableLock.table {
-		indices.lowerBound = 0
-	}
+	indexPointers := make(map[string]int, len(indexer.tableLock.table))
 
 	// DocId 递增顺序遍历插入文档保证索引移动次数最少
 	for i, document := range *documents {
@@ -178,8 +175,8 @@ func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
 
 			// 查找应该插入的位置，且索引一定不存在
 			position, _ := indexer.searchIndex(
-				indices, indices.lowerBound, indexer.getIndexLength(indices)-1, document.DocId)
-			indices.lowerBound = position
+				indices, indexPointers[keyword.Text], indexer.getIndexLength(indices)-1, document.DocId)
+			indexPointers[keyword.Text] = position
 			switch indexer.initOptions.IndexType {
 			case types.LocationsIndex:
 				indices.locations = append(indices.locations, []int{})
@@ -204,6 +201,7 @@ func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
 }
 
 // 向 REMOVECACHE 中加入一个待删除文档
+// 返回值表示文档是否在索引表中被删除
 func (indexer *Indexer) RemoveDocumentToCache(docId uint64, forceUpdate bool) bool {
 	if indexer.initialized == false {
 		log.Fatal("索引器尚未初始化")
@@ -218,7 +216,7 @@ func (indexer *Indexer) RemoveDocumentToCache(docId uint64, forceUpdate bool) bo
 			indexer.tableLock.docsState[docId] = 1
 			indexer.numDocuments--
 		} else if !ok {
-			// 删除一个等待加入的文档
+			// 删除一个不存在或者等待加入的文档
 			indexer.tableLock.docsState[docId] = 1
 		}
 		indexer.tableLock.Unlock()
@@ -399,7 +397,7 @@ func (indexer *Indexer) Lookup(
 				}
 
 				// 计算搜索键在文档中的紧邻距离
-				tokenProximity, tokenLocations := computeTokenProximity(table[:len(tokens)], &indexPointers, tokens)
+				tokenProximity, tokenLocations := computeTokenProximity(table[:len(tokens)], indexPointers, tokens)
 				indexedDoc.TokenProximity = int32(tokenProximity)
 				indexedDoc.TokenSnippetLocations = tokenLocations
 
@@ -489,7 +487,7 @@ func (indexer *Indexer) searchIndex(
 //
 // 具体由动态规划实现，依次计算前 i 个 token 在每个出现位置的最优值。
 // 选定的 P_i 通过 tokenLocations 参数传回。
-func computeTokenProximity(table []*KeywordIndices, indexPointers *[]int, tokens []string) (
+func computeTokenProximity(table []*KeywordIndices, indexPointers []int, tokens []string) (
 	minTokenProximity int, tokenLocations []int) {
 	minTokenProximity = -1
 	tokenLocations = make([]int, len(tokens))
@@ -503,14 +501,14 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers *[]int, tokens
 	// 初始化路径数组
 	path = make([][]int, len(tokens))
 	for i := 1; i < len(path); i++ {
-		path[i] = make([]int, len(table[i].locations[(*indexPointers)[i]]))
+		path[i] = make([]int, len(table[i].locations[indexPointers[i]]))
 	}
 
 	// 动态规划
-	currentLocations = table[0].locations[(*indexPointers)[0]]
+	currentLocations = table[0].locations[indexPointers[0]]
 	currentMinValues = make([]int, len(currentLocations))
 	for i := 1; i < len(tokens); i++ {
-		nextLocations = table[i].locations[(*indexPointers)[i]]
+		nextLocations = table[i].locations[indexPointers[i]]
 		nextMinValues = make([]int, len(nextLocations))
 		for j, _ := range nextMinValues {
 			nextMinValues[j] = -1
@@ -562,7 +560,7 @@ func computeTokenProximity(table []*KeywordIndices, indexPointers *[]int, tokens
 		if i != len(tokens)-1 {
 			cursor = path[i+1][cursor]
 		}
-		tokenLocations[i] = table[i].locations[(*indexPointers)[i]][cursor]
+		tokenLocations[i] = table[i].locations[indexPointers[i]][cursor]
 	}
 	return
 }
