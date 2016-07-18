@@ -242,6 +242,7 @@ func TestRemoveDocument(t *testing.T) {
 
 	AddDocs(&engine)
 	engine.RemoveDocument(5, true)
+	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
 	utils.Expect(t, "1", len(outputs.Docs))
@@ -382,6 +383,7 @@ func TestCountDocsOnly(t *testing.T) {
 
 	AddDocs(&engine)
 	engine.RemoveDocument(5, true)
+	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口", CountDocsOnly: true})
 	utils.Expect(t, "0", len(outputs.Docs))
