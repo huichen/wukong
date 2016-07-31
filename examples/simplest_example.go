@@ -28,7 +28,7 @@ func main() {
 	searcher.IndexDocument(2, types.DocumentIndexData{Content: "百度宣布拟全资收购91无线业务"}, false)
 	searcher.IndexDocument(3, types.DocumentIndexData{Content: "百度是中国最大的搜索引擎"}, false)
 
-	// 强制索引刷新
+	// 等待索引刷新完毕
 	searcher.FlushIndex()
 
 	// 搜索输出格式见types.SearchResponse结构体
