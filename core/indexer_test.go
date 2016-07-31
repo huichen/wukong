@@ -45,6 +45,7 @@ func TestAddKeywords(t *testing.T) {
 func TestRemoveDocument(t *testing.T) {
 	var indexer Indexer
 	indexer.Init(types.IndexerInitOptions{IndexType: types.LocationsIndex})
+
 	// doc1 = "token2 token3"
 	indexer.AddDocumentToCache(&types.DocumentIndex{
 		DocId: 1,
@@ -98,11 +99,30 @@ func TestRemoveDocument(t *testing.T) {
 			{"token1", 0, []int{0}},
 			{"token2", 0, []int{7}},
 		},
-	}, false)
-	indexer.RemoveDocumentToCache(3, false)
-	indexer.AddDocumentToCache(nil, true)
+	}, true)
+	indexer.RemoveDocumentToCache(3, true)
 	utils.Expect(t, "1 2 ", indicesToString(&indexer, "token1"))
 	utils.Expect(t, "2 ", indicesToString(&indexer, "token2"))
+	utils.Expect(t, "1 2 ", indicesToString(&indexer, "token3"))
+
+	// doc2 = "token1 token2 token3"
+	indexer.AddDocumentToCache(&types.DocumentIndex{
+		DocId: 2,
+		Keywords: []types.KeywordIndex{
+			{"token2", 0, []int{0}},
+			{"token3", 0, []int{7}},
+		},
+	}, true)
+	// doc3 = "token1 token3"
+	indexer.AddDocumentToCache(&types.DocumentIndex{
+		DocId: 3,
+		Keywords: []types.KeywordIndex{
+			{"token1", 0, []int{0}},
+			{"token2", 0, []int{7}},
+		},
+	}, true)
+	utils.Expect(t, "1 3 ", indicesToString(&indexer, "token1"))
+	utils.Expect(t, "2 3 ", indicesToString(&indexer, "token2"))
 	utils.Expect(t, "1 2 ", indicesToString(&indexer, "token3"))
 }
 

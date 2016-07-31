@@ -19,28 +19,27 @@ func AddDocs(engine *Engine) {
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国有十三亿人口人口",
 		Fields:  ScoringFields{1, 2, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国人口",
 		Fields:  nil,
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有人口",
 		Fields:  ScoringFields{2, 3, 1},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有十三亿人口",
 		Fields:  ScoringFields{2, 3, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	}, true)
-
+	}, false)
 	engine.FlushIndex()
 }
 
@@ -241,14 +240,22 @@ func TestRemoveDocument(t *testing.T) {
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument(5, true)
+	engine.RemoveDocument(5, false)
+	engine.RemoveDocument(6, true)
+	engine.FlushIndex()
+	engine.IndexDocument(6, types.DocumentIndexData{
+		Content: "中国人口有十三亿",
+		Fields:  ScoringFields{0, 9, 1},
+	}, false)
 	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
-	utils.Expect(t, "1", len(outputs.Docs))
+	utils.Expect(t, "2", len(outputs.Docs))
 
-	utils.Expect(t, "1", outputs.Docs[0].DocId)
-	utils.Expect(t, "6000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "6", outputs.Docs[0].DocId)
+	utils.Expect(t, "9000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "1", outputs.Docs[1].DocId)
+	utils.Expect(t, "6000", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestEngineIndexDocumentWithTokens(t *testing.T) {

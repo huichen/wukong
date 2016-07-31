@@ -411,16 +411,20 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 
 // 阻塞等待直到所有索引添加完毕
 func (engine *Engine) FlushIndex() {
-	// 强制更新，CHANNEL 中 REQUESTS 的无序性可能会导致 CACHE 中有残留
-	engine.RemoveDocument(0, true)
-	engine.IndexDocument(0, types.DocumentIndexData{}, true)
 	for {
 		runtime.Gosched()
 		if engine.numIndexingRequests == engine.numDocumentsIndexed &&
 			engine.numRemovingRequests*uint64(engine.initOptions.NumShards) == engine.numDocumentsRemoved &&
-			engine.numForceUpdatingRequests*uint64(engine.initOptions.NumShards) ==
-				engine.numDocumentsForceUpdated && (!engine.initOptions.UsePersistentStorage ||
-			engine.numIndexingRequests == engine.numDocumentsStored) {
+			(!engine.initOptions.UsePersistentStorage || engine.numIndexingRequests == engine.numDocumentsStored) {
+			// 保证 CHANNEL 中 REQUESTS 全部被执行完
+			break
+		}
+	}
+	// 强制更新，保证其为最后的请求
+	engine.IndexDocument(0, types.DocumentIndexData{}, true)
+	for {
+		runtime.Gosched()
+		if engine.numForceUpdatingRequests*uint64(engine.initOptions.NumShards) == engine.numDocumentsForceUpdated {
 			return
 		}
 	}

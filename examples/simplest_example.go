@@ -23,10 +23,10 @@ func main() {
 		SegmenterDictionaries: "../data/dictionary.txt"})
 	defer searcher.Close()
 
-	// 将文档加入索引
-	searcher.IndexDocument(0, types.DocumentIndexData{Content: "此次百度收购将成中国互联网最大并购"})
-	searcher.IndexDocument(1, types.DocumentIndexData{Content: "百度宣布拟全资收购91无线业务"})
-	searcher.IndexDocument(2, types.DocumentIndexData{Content: "百度是中国最大的搜索引擎"})
+	// 将文档加入索引，docId 从1开始
+	searcher.IndexDocument(1, types.DocumentIndexData{Content: "此次百度收购将成中国互联网最大并购"}, false)
+	searcher.IndexDocument(2, types.DocumentIndexData{Content: "百度宣布拟全资收购91无线业务"}, false)
+	searcher.IndexDocument(3, types.DocumentIndexData{Content: "百度是中国最大的搜索引擎"}, false)
 
 	// 强制索引刷新
 	searcher.FlushIndex()
