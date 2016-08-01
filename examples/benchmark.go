@@ -145,6 +145,19 @@ func main() {
 	log.Printf("建立索引花费时间 %v", t1.Sub(t0))
 	log.Printf("建立索引速度每秒添加 %f 百万个索引",
 		float64(searcher.NumTokenIndexAdded())/t1.Sub(t0).Seconds()/(1000000))
+
+	// 记录时间并计算删除索引时间
+	t2 := time.Now()
+	for i := 1; i <= *num_delete_docs; i++ {
+		searcher.RemoveDocument(uint64(i), false)
+	}
+	searcher.FlushIndex()
+
+	t3 := time.Now()
+	log.Printf("删除 %d 条索引花费时间 %v", *num_delete_docs, t3.Sub(t2))
+
+	// 手动做 GC 防止影响性能测试
+	time.Sleep(time.Second)
 	runtime.GC()
 
 	// 写入内存profile文件
@@ -157,15 +170,7 @@ func main() {
 		defer f.Close()
 	}
 
-	// 记录时间并计算删除索引时间
-	t2 := time.Now()
-	for i := 1; i <= *num_delete_docs; i++ {
-		searcher.RemoveDocument(uint64(i), false)
-	}
-	searcher.FlushIndex()
-	t3 := time.Now()
-	log.Printf("删除 %d 条索引花费时间 %v", *num_delete_docs, t3.Sub(t2))
-
+	t4 := time.Now()
 	done := make(chan bool)
 	recordResponse := recordResponseLock{}
 	recordResponse.count = make(map[string]int)
@@ -177,12 +182,12 @@ func main() {
 	}
 
 	// 记录时间并计算分词速度
-	t4 := time.Now()
+	t5 := time.Now()
 	log.Printf("搜索平均响应时间 %v 毫秒",
-		t4.Sub(t3).Seconds()*1000/float64(numRepeatQuery*len(searchQueries)))
+		t5.Sub(t4).Seconds()*1000/float64(numRepeatQuery*len(searchQueries)))
 	log.Printf("搜索吞吐量每秒 %v 次查询",
 		float64(numRepeatQuery*numQueryThreads*len(searchQueries))/
-			t4.Sub(t3).Seconds())
+			t5.Sub(t4).Seconds())
 
 	// 测试搜索结果输出，因为不同 case 的 docId 对应不上，所以只测试总数
 	recordResponse.RLock()
@@ -193,7 +198,7 @@ func main() {
 
 	if *use_persistent {
 		searcher.Close()
-		t5 := time.Now()
+		t6 := time.Now()
 		searcher1 := engine.Engine{}
 		searcher1.Init(types.EngineInitOptions{
 			SegmenterDictionaries: *dictionaries,
@@ -208,8 +213,8 @@ func main() {
 			PersistentStorageShards: *persistent_storage_shards,
 		})
 		defer searcher1.Close()
-		t6 := time.Now()
-		t := t6.Sub(t5).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
+		t7 := time.Now()
+		t := t7.Sub(t6).Seconds() - tEndInit.Sub(tBeginInit).Seconds()
 		log.Print("从持久存储加入的索引总数", searcher1.NumTokenIndexAdded())
 		log.Printf("从持久存储建立索引花费时间 %v 秒", t)
 		log.Printf("从持久存储建立索引速度每秒添加 %f 百万个索引",

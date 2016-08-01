@@ -15,32 +15,59 @@ type ScoringFields struct {
 
 func AddDocs(engine *Engine) {
 	docId := uint64(1)
-	// 因为需要保证文档全部被加入到索引中，所以 forceUpdate 全部设置成 true
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国有十三亿人口人口",
 		Fields:  ScoringFields{1, 2, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国人口",
 		Fields:  nil,
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有人口",
 		Fields:  ScoringFields{2, 3, 1},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "有十三亿人口",
 		Fields:  ScoringFields{2, 3, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	}, true)
+	}, false)
+	engine.FlushIndex()
+}
 
+func addDocsWithLabels(engine *Engine) {
+	docId := uint64(1)
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "此次百度收购将成中国互联网最大并购",
+		Labels:  []string{"百度", "中国"},
+	}, false)
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "百度宣布拟全资收购91无线业务",
+		Labels:  []string{"百度"},
+	}, false)
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "百度是中国最大的搜索引擎",
+		Labels:  []string{"百度"},
+	}, false)
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "百度在研制无人汽车",
+		Labels:  []string{"百度"},
+	}, false)
+	docId++
+	engine.IndexDocument(docId, types.DocumentIndexData{
+		Content: "BAT是中国互联网三巨头",
+		Labels:  []string{"百度"},
+	}, false)
 	engine.FlushIndex()
 }
 
@@ -241,14 +268,22 @@ func TestRemoveDocument(t *testing.T) {
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument(5, true)
+	engine.RemoveDocument(5, false)
+	engine.RemoveDocument(6, false)
+	engine.FlushIndex()
+	engine.IndexDocument(6, types.DocumentIndexData{
+		Content: "中国人口有十三亿",
+		Fields:  ScoringFields{0, 9, 1},
+	}, false)
 	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
-	utils.Expect(t, "1", len(outputs.Docs))
+	utils.Expect(t, "2", len(outputs.Docs))
 
-	utils.Expect(t, "1", outputs.Docs[0].DocId)
-	utils.Expect(t, "6000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "6", outputs.Docs[0].DocId)
+	utils.Expect(t, "9000", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "1", outputs.Docs[1].DocId)
+	utils.Expect(t, "6000", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestEngineIndexDocumentWithTokens(t *testing.T) {
@@ -273,7 +308,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"人口", []int{18, 24}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "",
@@ -282,13 +317,12 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			{"人口", []int{6}},
 		},
 		Fields: ScoringFields{1, 2, 3},
-	}, true)
+	}, false)
 	docId++
 	engine.IndexDocument(docId, types.DocumentIndexData{
 		Content: "中国十三亿人口",
 		Fields:  ScoringFields{0, 9, 1},
-	}, true)
-
+	}, false)
 	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口"})
@@ -308,6 +342,34 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 	utils.Expect(t, "1", outputs.Docs[2].DocId)
 	utils.Expect(t, "76", int(outputs.Docs[2].Scores[0]*1000))
 	utils.Expect(t, "[0 18]", outputs.Docs[2].TokenSnippetLocations)
+}
+
+func TestEngineIndexDocumentWithContentAndLabels(t *testing.T) {
+	var engine1, engine2 Engine
+	engine1.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../data/dictionary.txt",
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.LocationsIndex,
+		},
+	})
+	engine2.Init(types.EngineInitOptions{
+		SegmenterDictionaries: "../data/dictionary.txt",
+		IndexerInitOptions: &types.IndexerInitOptions{
+			IndexType: types.DocIdsIndex,
+		},
+	})
+
+	addDocsWithLabels(&engine1)
+	addDocsWithLabels(&engine2)
+
+	outputs1 := engine1.Search(types.SearchRequest{Text: "百度"})
+	outputs2 := engine2.Search(types.SearchRequest{Text: "百度"})
+	utils.Expect(t, "1", len(outputs1.Tokens))
+	utils.Expect(t, "1", len(outputs2.Tokens))
+	utils.Expect(t, "百度", outputs1.Tokens[0])
+	utils.Expect(t, "百度", outputs2.Tokens[0])
+	utils.Expect(t, "5", len(outputs1.Docs))
+	utils.Expect(t, "5", len(outputs2.Docs))
 }
 
 func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
@@ -382,7 +444,7 @@ func TestCountDocsOnly(t *testing.T) {
 	})
 
 	AddDocs(&engine)
-	engine.RemoveDocument(5, true)
+	engine.RemoveDocument(5, false)
 	engine.FlushIndex()
 
 	outputs := engine.Search(types.SearchRequest{Text: "中国人口", CountDocsOnly: true})
@@ -427,62 +489,4 @@ func TestSearchWithin(t *testing.T) {
 	utils.Expect(t, "5", outputs.Docs[1].DocId)
 	utils.Expect(t, "100", int(outputs.Docs[1].Scores[0]*1000))
 	utils.Expect(t, "[0 15]", outputs.Docs[1].TokenSnippetLocations)
-}
-
-func TestLookupWithLocations1(t *testing.T) {
-
-	type Data struct {
-		Id      int
-		Content string
-		Labels  []string
-	}
-
-	datas := make([]Data, 0)
-
-	data0 := Data{Id: 0, Content: "此次百度收购将成中国互联网最大并购", Labels: []string{"百度", "中国"}}
-	datas = append(datas, data0)
-
-	data1 := Data{Id: 1, Content: "百度宣布拟全资收购91无线业务", Labels: []string{"百度"}}
-	datas = append(datas, data1)
-
-	data2 := Data{Id: 2, Content: "百度是中国最大的搜索引擎", Labels: []string{"百度"}}
-	datas = append(datas, data2)
-
-	data3 := Data{Id: 3, Content: "百度在研制无人汽车", Labels: []string{"百度"}}
-	datas = append(datas, data3)
-
-	data4 := Data{Id: 4, Content: "BAT是中国互联网三巨头", Labels: []string{"百度"}}
-	datas = append(datas, data4)
-
-	// 初始化
-	searcher_locations := Engine{}
-	searcher_locations.Init(types.EngineInitOptions{
-		SegmenterDictionaries: "../data/dictionary.txt",
-		IndexerInitOptions: &types.IndexerInitOptions{
-			IndexType: types.LocationsIndex,
-		},
-	})
-	defer searcher_locations.Close()
-	for _, data := range datas {
-		searcher_locations.IndexDocument(uint64(data.Id), types.DocumentIndexData{Content: data.Content, Labels: data.Labels}, true)
-	}
-	searcher_locations.FlushIndex()
-	res_locations := searcher_locations.Search(types.SearchRequest{Text: "百度"})
-
-	searcher_docids := Engine{}
-	searcher_docids.Init(types.EngineInitOptions{
-		SegmenterDictionaries: "../data/dictionary.txt",
-		IndexerInitOptions: &types.IndexerInitOptions{
-			IndexType: types.DocIdsIndex,
-		},
-	})
-	defer searcher_docids.Close()
-	for _, data := range datas {
-		searcher_docids.IndexDocument(uint64(data.Id), types.DocumentIndexData{Content: data.Content, Labels: data.Labels}, true)
-	}
-	searcher_docids.FlushIndex()
-	res_docids := searcher_docids.Search(types.SearchRequest{Text: "百度"})
-	if res_docids.NumDocs != res_locations.NumDocs {
-		t.Errorf("期待的搜索结果个数=\"%d\", 实际=\"%d\"", res_docids.NumDocs, res_locations.NumDocs)
-	}
 }

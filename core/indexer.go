@@ -93,22 +93,24 @@ func (indexer *Indexer) AddDocumentToCache(document *types.DocumentIndex, forceU
 		position := 0
 		for i := 0; i < indexer.addCacheLock.addCachePointer; i++ {
 			docIndex := indexer.addCacheLock.addCache[i]
-			if docState, ok := indexer.tableLock.docsState[docIndex.DocId]; ok && docState == 0 {
+			if docState, ok := indexer.tableLock.docsState[docIndex.DocId]; ok && docState <= 1 {
 				// ok && docState == 0 表示存在于索引中，需先删除再添加
+				// ok && docState == 1 表示不一定存在于索引中，等待删除，需先删除再添加
 				if position != i {
 					indexer.addCacheLock.addCache[position], indexer.addCacheLock.addCache[i] =
 						indexer.addCacheLock.addCache[i], indexer.addCacheLock.addCache[position]
 				}
-				indexer.removeCacheLock.Lock()
-				indexer.removeCacheLock.removeCache[indexer.removeCacheLock.removeCachePointer] =
-					docIndex.DocId
-				indexer.removeCacheLock.removeCachePointer++
-				indexer.removeCacheLock.Unlock()
-				indexer.tableLock.docsState[docIndex.DocId] = 1
-				indexer.numDocuments--
+				if docState == 0 {
+					indexer.removeCacheLock.Lock()
+					indexer.removeCacheLock.removeCache[indexer.removeCacheLock.removeCachePointer] =
+						docIndex.DocId
+					indexer.removeCacheLock.removeCachePointer++
+					indexer.removeCacheLock.Unlock()
+					indexer.tableLock.docsState[docIndex.DocId] = 1
+					indexer.numDocuments--
+				}
 				position++
-			} else if !(ok && docState == 1) {
-				// ok && docState == 1 表示等待删除
+			} else if !ok {
 				indexer.tableLock.docsState[docIndex.DocId] = 2
 			}
 		}
@@ -147,6 +149,7 @@ func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
 		}
 		if docState, ok := indexer.tableLock.docsState[document.DocId]; ok && docState == 1 {
 			// 如果此时 docState 仍为 1，说明该文档需被删除
+			// docState 合法状态为 nil & 2，保证一定不会插入已经在索引表中的文档
 			continue
 		}
 
@@ -215,9 +218,11 @@ func (indexer *Indexer) RemoveDocumentToCache(docId uint64, forceUpdate bool) bo
 			indexer.removeCacheLock.removeCachePointer++
 			indexer.tableLock.docsState[docId] = 1
 			indexer.numDocuments--
-		} else if !ok {
-			// 删除一个不存在或者等待加入的文档
+		} else if ok && docState == 2 {
+			// 删除一个等待加入的文档
 			indexer.tableLock.docsState[docId] = 1
+		} else if !ok {
+			// 若文档不存在，则无法判断其是否在 addCache 中，需避免这样的操作
 		}
 		indexer.tableLock.Unlock()
 	}
@@ -257,8 +262,7 @@ func (indexer *Indexer) RemoveDocuments(documents *types.DocumentsId) {
 		documentsPointer := sort.Search(
 			len(*documents), func(i int) bool { return (*documents)[i] >= indices.docIds[0] })
 		// 双指针扫描，进行批量删除操作
-		for ; documentsPointer < len(*documents) &&
-			indicesPointer < indexer.getIndexLength(indices); indicesPointer++ {
+		for documentsPointer < len(*documents) && indicesPointer < indexer.getIndexLength(indices) {
 			if indices.docIds[indicesPointer] < (*documents)[documentsPointer] {
 				if indicesTop != indicesPointer {
 					switch indexer.initOptions.IndexType {
@@ -270,6 +274,10 @@ func (indexer *Indexer) RemoveDocuments(documents *types.DocumentsId) {
 					indices.docIds[indicesTop] = indices.docIds[indicesPointer]
 				}
 				indicesTop++
+				indicesPointer++
+			} else if indices.docIds[indicesPointer] == (*documents)[documentsPointer] {
+				indicesPointer++
+				documentsPointer++
 			} else {
 				documentsPointer++
 			}
