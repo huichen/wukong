@@ -133,7 +133,7 @@ type WeiboScoringFields struct {
 type WeiboScoringCriteria struct {
 }
 
-func (criteria WeiboScoringCriteria) Score(
+func (criteria WeiboScoringCriteria) Score {
         doc types.IndexedDocument, fields interface{}) []float32 {
         if reflect.TypeOf(fields) != reflect.TypeOf(WeiboScoringFields{}) {
                 return []float32{}
