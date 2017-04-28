@@ -444,3 +444,16 @@ func (engine *Engine) Close() {
 func (engine *Engine) getShard(hash uint32) int {
 	return int(hash - hash/uint32(engine.initOptions.NumShards)*uint32(engine.initOptions.NumShards))
 }
+
+// 从数据库遍历所有的DocId,并返回
+func (engine *Engine) GetAllDocIds() []uint64 {
+	docsId := make([]uint64, 0)
+	for i, _ := range engine.dbs {
+		engine.dbs[i].ForEach(func(k, v []byte) error {
+			fmt.Println(uint64(k[0]))
+			docsId = append(docsId, uint64(k[0]))
+			return nil
+		})
+	}
+	return docsId
+}
