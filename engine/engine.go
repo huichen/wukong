@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"github.com/huichen/murmur"
 	"github.com/huichen/sego"
 	"github.com/huichen/wukong/core"
@@ -450,7 +449,6 @@ func (engine *Engine) GetAllDocIds() []uint64 {
 	docsId := make([]uint64, 0)
 	for i, _ := range engine.dbs {
 		engine.dbs[i].ForEach(func(k, v []byte) error {
-			fmt.Println(uint64(k[0]))
 			docsId = append(docsId, uint64(k[0]))
 			return nil
 		})
