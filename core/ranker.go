@@ -1,11 +1,12 @@
 package core
 
 import (
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"log"
 	"sort"
 	"sync"
+
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 )
 
 type Ranker struct {
@@ -75,7 +76,8 @@ func (ranker *Ranker) Rank(
 						DocId:                 d.DocId,
 						Scores:                scores,
 						TokenSnippetLocations: d.TokenSnippetLocations,
-						TokenLocations:        d.TokenLocations})
+						TokenLocations:        d.TokenLocations,
+						Fields:                fs})
 				}
 				numDocs++
 			}
