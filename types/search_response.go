@@ -32,6 +32,8 @@ type ScoredDocument struct {
 	// 关键词出现的位置
 	// 只有当IndexType == LocationsIndex时不为空
 	TokenLocations [][]int
+
+	Fields interface{}
 }
 
 // 为了方便排序
