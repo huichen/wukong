@@ -17,13 +17,14 @@ import (
 	"encoding/gob"
 	"flag"
 	"fmt"
-	"github.com/huichen/wukong/engine"
-	"github.com/huichen/wukong/types"
 	"log"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/huichen/wukong/engine"
+	"github.com/huichen/wukong/types"
 )
 
 const (
@@ -142,7 +143,8 @@ func main() {
 	log.Print("建立索引")
 	for i, text := range lines {
 		searcher.IndexDocument(uint64(i),
-			types.DocumentIndexData{Content: text, Fields: fieldsSlice[i]})
+			types.DocumentIndexData{Content: text, Fields: fieldsSlice[i]},
+			false)
 	}
 	searcher.FlushIndex()
 	log.Print("索引建立完毕")
