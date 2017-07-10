@@ -73,7 +73,7 @@ func indexWeibo() {
 				Timestamp:    weibo.Timestamp,
 				RepostsCount: weibo.RepostsCount,
 			},
-		})
+		}, false)
 	}
 
 	searcher.FlushIndex()
