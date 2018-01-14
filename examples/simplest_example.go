@@ -7,9 +7,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/huichen/wukong/engine"
 	"github.com/huichen/wukong/types"
-	"log"
 )
 
 var (
