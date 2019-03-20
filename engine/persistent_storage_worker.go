@@ -58,7 +58,7 @@ func (engine *Engine) persistentStorageInitWorker(shard int) {
 		err := dec.Decode(&data)
 		if err == nil {
 			// 添加索引
-			engine.internalIndexDocument(docId, data, false)
+			engine.IndexDocument(docId, data, false)
 		}
 		return nil
 	})
