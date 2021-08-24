@@ -80,7 +80,7 @@ type EngineInitOptions struct {
 // 初始化EngineInitOptions，当用户未设定某个选项的值时用默认值取代
 func (options *EngineInitOptions) Init() {
 	if !options.NotUsingSegmenter {
-		if options.SegmenterDictionaries == "" {
+		if options.Segmenter == nil && options.SegmenterDictionaries == "" {
 			log.Fatal("字典文件不能为空")
 		}
 	}
