@@ -259,10 +259,10 @@ func TestFrequenciesIndex(t *testing.T) {
 	utils.Expect(t, "2", len(outputs.Docs))
 
 	utils.Expect(t, "5", outputs.Docs[0].DocId)
-	utils.Expect(t, "2349", int(outputs.Docs[0].Scores[0]*1000))
+	utils.Expect(t, "2311", int(outputs.Docs[0].Scores[0]*1000))
 
 	utils.Expect(t, "1", outputs.Docs[1].DocId)
-	utils.Expect(t, "2320", int(outputs.Docs[1].Scores[0]*1000))
+	utils.Expect(t, "2211", int(outputs.Docs[1].Scores[0]*1000))
 }
 
 func TestRemoveDocument(t *testing.T) {
