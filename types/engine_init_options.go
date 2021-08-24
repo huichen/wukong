@@ -3,6 +3,8 @@ package types
 import (
 	"log"
 	"runtime"
+
+	"github.com/huichen/sego"
 )
 
 var (
@@ -34,11 +36,14 @@ type EngineInitOptions struct {
 	// 注意，如果你不用分词器，那么在调用IndexDocument时DocumentIndexData中的Content会被忽略
 	NotUsingSegmenter bool
 
+	// 尝试使用外部传入的 segmenter，如果为 nil 则使用下面的字典文件
+	Segmenter *sego.Segmenter
 	// 半角逗号分隔的字典文件，具体用法见
 	// sego.Segmenter.LoadDictionary函数的注释
 	SegmenterDictionaries string
 
-	// 停用词文件
+	// 停用词文件，如果为 nil 则尝试从下面的文件载入
+	StopTokens    *StopTokens
 	StopTokenFile string
 
 	// 分词器线程数

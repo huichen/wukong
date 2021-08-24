@@ -2,12 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"github.com/huichen/murmur"
-	"github.com/huichen/sego"
-	"github.com/huichen/wukong/core"
-	"github.com/huichen/wukong/storage"
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"log"
 	"os"
 	"runtime"
@@ -15,6 +9,13 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"github.com/huichen/murmur"
+	"github.com/huichen/sego"
+	"github.com/huichen/wukong/core"
+	"github.com/huichen/wukong/storage"
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 )
 
 const (
@@ -37,11 +38,13 @@ type Engine struct {
 	initOptions types.EngineInitOptions
 	initialized bool
 
-	indexers   []core.Indexer
-	rankers    []core.Ranker
-	segmenter  sego.Segmenter
-	stopTokens StopTokens
-	dbs        []storage.Storage
+	indexers                []*core.Indexer
+	rankers                 []*core.Ranker
+	segmenter               *sego.Segmenter
+	usingExternalSegmenter  bool
+	stopTokens              *types.StopTokens
+	usingExternalStopTokens bool
+	dbs                     []storage.Storage
 
 	// 建立索引器使用的通信通道
 	segmenterChannel         chan segmenterRequest
@@ -73,18 +76,32 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 
 	if !options.NotUsingSegmenter {
 		// 载入分词器词典
-		engine.segmenter.LoadDictionary(options.SegmenterDictionaries)
+		if options.Segmenter != nil {
+			engine.segmenter = options.Segmenter
+			engine.usingExternalSegmenter = true
+		} else {
+			engine.segmenter = &sego.Segmenter{}
+			engine.segmenter.LoadDictionary(options.SegmenterDictionaries)
+			engine.usingExternalSegmenter = false
+		}
 
 		// 初始化停用词
-		engine.stopTokens.Init(options.StopTokenFile)
+		if options.StopTokens != nil {
+			engine.stopTokens = options.StopTokens
+			engine.usingExternalStopTokens = true
+		} else {
+			engine.stopTokens = &types.StopTokens{}
+			engine.stopTokens.Init(options.StopTokenFile)
+			engine.usingExternalStopTokens = false
+		}
 	}
 
 	// 初始化索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
-		engine.indexers = append(engine.indexers, core.Indexer{})
+		engine.indexers = append(engine.indexers, &core.Indexer{})
 		engine.indexers[shard].Init(*options.IndexerInitOptions)
 
-		engine.rankers = append(engine.rankers, core.Ranker{})
+		engine.rankers = append(engine.rankers, &core.Ranker{})
 		engine.rankers[shard].Init()
 	}
 
@@ -230,7 +247,7 @@ func (engine *Engine) Init(options types.EngineInitOptions) {
 func (engine *Engine) IndexDocument(docId uint64, data types.DocumentIndexData, forceUpdate bool) {
 	engine.internalIndexDocument(docId, data, forceUpdate)
 
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+	hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 	if engine.initOptions.UsePersistentStorage && docId != 0 {
 		engine.persistentStorageIndexDocumentChannels[hash] <- persistentStorageIndexDocumentRequest{docId: docId, data: data}
 	}
@@ -248,7 +265,7 @@ func (engine *Engine) internalIndexDocument(
 	if forceUpdate {
 		atomic.AddUint64(&engine.numForceUpdatingRequests, 1)
 	}
-	hash := murmur.Murmur3([]byte(fmt.Sprint("%d%s", docId, data.Content)))
+	hash := murmur.Murmur3([]byte(fmt.Sprintf("%d%s", docId, data.Content)))
 	engine.segmenterChannel <- segmenterRequest{
 		docId: docId, hash: hash, data: data, forceUpdate: forceUpdate}
 }
@@ -284,7 +301,7 @@ func (engine *Engine) RemoveDocument(docId uint64, forceUpdate bool) {
 
 	if engine.initOptions.UsePersistentStorage && docId != 0 {
 		// 从数据库中删除
-		hash := murmur.Murmur3([]byte(fmt.Sprint("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
+		hash := murmur.Murmur3([]byte(fmt.Sprintf("%d", docId))) % uint32(engine.initOptions.PersistentStorageShards)
 		go engine.persistentStorageRemoveDocumentWorker(docId, hash)
 	}
 }
@@ -307,18 +324,16 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 
 	// 收集关键词
 	tokens := []string{}
-	if request.Text != "" {
+	if request.Text != "" && engine.segmenter != nil {
 		querySegments := engine.segmenter.Segment([]byte(request.Text))
 		for _, s := range querySegments {
 			token := s.Token().Text()
-			if !engine.stopTokens.IsStopToken(token) {
+			if engine.stopTokens != nil && !engine.stopTokens.IsStopToken(token) {
 				tokens = append(tokens, s.Token().Text())
 			}
 		}
 	} else {
-		for _, t := range request.Tokens {
-			tokens = append(tokens, t)
-		}
+		tokens = append(tokens, request.Tokens...)
 	}
 
 	// 建立排序器返回的通信通道
@@ -351,27 +366,22 @@ func (engine *Engine) Search(request types.SearchRequest) (output types.SearchRe
 		for shard := 0; shard < engine.initOptions.NumShards; shard++ {
 			rankerOutput := <-rankerReturnChannel
 			if !request.CountDocsOnly {
-				for _, doc := range rankerOutput.docs {
-					rankOutput = append(rankOutput, doc)
-				}
+				rankOutput = append(rankOutput, rankerOutput.docs...)
 			}
 			numDocs += rankerOutput.numDocs
 		}
 	} else {
 		// 设置超时
-		deadline := time.Now().Add(time.Nanosecond * time.Duration(NumNanosecondsInAMillisecond*request.Timeout))
-		for shard := 0; shard < engine.initOptions.NumShards; shard++ {
+		deadline := time.Now().Add(time.Millisecond * time.Duration(request.Timeout))
+		for shard := 0; shard < engine.initOptions.NumShards && !isTimeout; shard++ {
 			select {
 			case rankerOutput := <-rankerReturnChannel:
 				if !request.CountDocsOnly {
-					for _, doc := range rankerOutput.docs {
-						rankOutput = append(rankOutput, doc)
-					}
+					rankOutput = append(rankOutput, rankerOutput.docs...)
 				}
 				numDocs += rankerOutput.numDocs
-			case <-time.After(deadline.Sub(time.Now())):
+			case <-time.After(time.Until(deadline)):
 				isTimeout = true
-				break
 			}
 		}
 	}
@@ -430,14 +440,43 @@ func (engine *Engine) FlushIndex() {
 	}
 }
 
-// 关闭引擎
+// 关闭引擎并释放资源
 func (engine *Engine) Close() {
 	engine.FlushIndex()
+	engine.initialized = false
+
+	if !engine.usingExternalSegmenter && engine.segmenter != nil {
+		engine.segmenter.Close()
+	}
+
+	if !engine.usingExternalStopTokens && engine.stopTokens != nil {
+		engine.stopTokens.Close()
+	}
+
+	for _, ranker := range engine.rankers {
+		ranker.Close()
+	}
+	engine.rankers = nil
+
+	for _, indexer := range engine.indexers {
+		indexer.Close()
+	}
+	engine.indexers = nil
+
 	if engine.initOptions.UsePersistentStorage {
 		for _, db := range engine.dbs {
 			db.Close()
 		}
+		engine.dbs = nil
 	}
+
+	engine.indexerAddDocChannels = nil
+	engine.indexerRemoveDocChannels = nil
+	engine.rankerAddDocChannels = nil
+	engine.indexerLookupChannels = nil
+	engine.rankerRankChannels = nil
+	engine.rankerRemoveDocChannels = nil
+	engine.persistentStorageIndexDocumentChannels = nil
 }
 
 // 从文本hash得到要分配到的shard

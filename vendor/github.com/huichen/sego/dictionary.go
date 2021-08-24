@@ -29,6 +29,14 @@ func (dict *Dictionary) TotalFrequency() int64 {
 	return dict.totalFrequency
 }
 
+// 释放资源
+func (dict *Dictionary) Close() {
+	dict.trie = nil
+	dict.maxTokenLength = 0
+	dict.tokens = nil
+	dict.totalFrequency = int64(0)
+}
+
 // 向词典中加入一个分词
 func (dict *Dictionary) addToken(token Token) {
 	bytes := textSliceToBytes(token.text)

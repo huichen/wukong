@@ -53,7 +53,7 @@ type KeywordIndices struct {
 
 // 初始化索引器
 func (indexer *Indexer) Init(options types.IndexerInitOptions) {
-	if indexer.initialized == true {
+	if indexer.initialized {
 		log.Fatal("索引器不能初始化两次")
 	}
 	options.Init()
@@ -65,6 +65,26 @@ func (indexer *Indexer) Init(options types.IndexerInitOptions) {
 	indexer.addCacheLock.addCache = make([]*types.DocumentIndex, indexer.initOptions.DocCacheSize)
 	indexer.removeCacheLock.removeCache = make([]uint64, indexer.initOptions.DocCacheSize*2)
 	indexer.docTokenLengths = make(map[uint64]float32)
+}
+
+func (indexer *Indexer) Close() {
+	indexer.initialized = false
+
+	indexer.docTokenLengths = nil
+
+	for _, ki := range indexer.tableLock.table {
+		ki.docIds = nil
+		ki.frequencies = nil
+		ki.locations = nil
+	}
+	indexer.tableLock.table = nil
+	indexer.tableLock.docsState = nil
+
+	indexer.addCacheLock.addCache.Close()
+	indexer.addCacheLock.addCache = nil
+
+	indexer.removeCacheLock.removeCache = nil
+
 }
 
 // 从KeywordIndices中得到第i个文档的DocId
@@ -79,7 +99,7 @@ func (indexer *Indexer) getIndexLength(ti *KeywordIndices) int {
 
 // 向 ADDCACHE 中加入一个文档
 func (indexer *Indexer) AddDocumentToCache(document *types.DocumentIndex, forceUpdate bool) {
-	if indexer.initialized == false {
+	if !indexer.initialized {
 		log.Fatal("索引器尚未初始化")
 	}
 
@@ -133,7 +153,7 @@ func (indexer *Indexer) AddDocumentToCache(document *types.DocumentIndex, forceU
 
 // 向反向索引表中加入 ADDCACHE 中所有文档
 func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
-	if indexer.initialized == false {
+	if !indexer.initialized {
 		log.Fatal("索引器尚未初始化")
 	}
 
@@ -206,7 +226,7 @@ func (indexer *Indexer) AddDocuments(documents *types.DocumentsIndex) {
 // 向 REMOVECACHE 中加入一个待删除文档
 // 返回值表示文档是否在索引表中被删除
 func (indexer *Indexer) RemoveDocumentToCache(docId uint64, forceUpdate bool) bool {
-	if indexer.initialized == false {
+	if !indexer.initialized {
 		log.Fatal("索引器尚未初始化")
 	}
 
@@ -243,7 +263,7 @@ func (indexer *Indexer) RemoveDocumentToCache(docId uint64, forceUpdate bool) bo
 
 // 向反向索引表中删除 REMOVECACHE 中所有文档
 func (indexer *Indexer) RemoveDocuments(documents *types.DocumentsId) {
-	if indexer.initialized == false {
+	if !indexer.initialized {
 		log.Fatal("索引器尚未初始化")
 	}
 
@@ -304,7 +324,7 @@ func (indexer *Indexer) RemoveDocuments(documents *types.DocumentsId) {
 // 当docIds不为nil时仅从docIds指定的文档中查找
 func (indexer *Indexer) Lookup(
 	tokens []string, labels []string, docIds map[uint64]bool, countDocsOnly bool) (docs []types.IndexedDocument, numDocs int) {
-	if indexer.initialized == false {
+	if !indexer.initialized {
 		log.Fatal("索引器尚未初始化")
 	}
 

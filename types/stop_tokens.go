@@ -1,4 +1,4 @@
-package engine
+package types
 
 import (
 	"bufio"
@@ -37,4 +37,9 @@ func (st *StopTokens) Init(stopTokenFile string) {
 func (st *StopTokens) IsStopToken(token string) bool {
 	_, found := st.stopTokens[token]
 	return found
+}
+
+// 释放资源
+func (st *StopTokens) Close() {
+	st.stopTokens = nil
 }

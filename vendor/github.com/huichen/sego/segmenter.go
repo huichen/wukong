@@ -136,9 +136,15 @@ func (seg *Segmenter) Segment(bytes []byte) []Segment {
 	return seg.internalSegment(bytes, false)
 }
 
-
 func (seg *Segmenter) InternalSegment(bytes []byte, searchMode bool) []Segment {
 	return seg.internalSegment(bytes, searchMode)
+}
+
+// 释放资源
+func (seg *Segmenter) Close() {
+	if seg.dict != nil {
+		seg.dict.Close()
+	}
 }
 
 func (seg *Segmenter) internalSegment(bytes []byte, searchMode bool) []Segment {

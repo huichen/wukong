@@ -2,11 +2,12 @@ package engine
 
 import (
 	"encoding/gob"
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 )
 
 type ScoringFields struct {
@@ -95,6 +96,7 @@ func TestEngineIndexDocument(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -131,6 +133,7 @@ func TestReverseOrder(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -156,6 +159,7 @@ func TestOffsetAndMaxOutputs(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -189,6 +193,7 @@ func TestSearchWithCriteria(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -210,6 +215,7 @@ func TestCompactIndex(t *testing.T) {
 			ScoringCriteria: TestScoringCriteria{},
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -245,6 +251,7 @@ func TestFrequenciesIndex(t *testing.T) {
 			IndexType: types.FrequenciesIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 
@@ -266,6 +273,7 @@ func TestRemoveDocument(t *testing.T) {
 			ScoringCriteria: TestScoringCriteria{},
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 	engine.RemoveDocument(5, false)
@@ -299,6 +307,7 @@ func TestEngineIndexDocumentWithTokens(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	docId := uint64(1)
 	engine.IndexDocument(docId, types.DocumentIndexData{
@@ -358,6 +367,8 @@ func TestEngineIndexDocumentWithContentAndLabels(t *testing.T) {
 			IndexType: types.DocIdsIndex,
 		},
 	})
+	defer engine1.Close()
+	defer engine2.Close()
 
 	addDocsWithLabels(&engine1)
 	addDocsWithLabels(&engine2)
@@ -389,6 +400,8 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		PersistentStorageFolder: "wukong.persistent",
 		PersistentStorageShards: 2,
 	})
+	defer engine.Close()
+
 	AddDocs(&engine)
 	engine.RemoveDocument(5, true)
 	engine.Close()
@@ -408,6 +421,8 @@ func TestEngineIndexDocumentWithPersistentStorage(t *testing.T) {
 		PersistentStorageFolder: "wukong.persistent",
 		PersistentStorageShards: 2,
 	})
+	defer engine1.Close()
+
 	engine1.FlushIndex()
 
 	outputs := engine1.Search(types.SearchRequest{Text: "中国人口"})
@@ -442,6 +457,7 @@ func TestCountDocsOnly(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 	engine.RemoveDocument(5, false)
@@ -467,6 +483,7 @@ func TestSearchWithin(t *testing.T) {
 			IndexType: types.LocationsIndex,
 		},
 	})
+	defer engine.Close()
 
 	AddDocs(&engine)
 

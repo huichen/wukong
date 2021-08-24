@@ -1,5 +1,4 @@
 # github.com/adamzy/cedar-go v0.0.0-20170805034717-80a9c64b256d
-## explicit
 github.com/adamzy/cedar-go
 # github.com/boltdb/bolt v1.3.1
 ## explicit
@@ -35,11 +34,9 @@ github.com/edsrzf/mmap-go
 # github.com/huichen/murmur v0.0.0-20130808212358-e0489551cf51
 ## explicit
 github.com/huichen/murmur
-# github.com/huichen/sego v0.0.0-20180617034105-3f3c8a8cfacc
+# github.com/huichen/sego v0.0.0-20210824061530-c87651ea5c76
 ## explicit
 github.com/huichen/sego
-# github.com/issue9/assert v1.4.1
-## explicit
 # github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0
 ## explicit
 github.com/remyoudompheng/bigfft

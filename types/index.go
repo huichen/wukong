@@ -56,6 +56,15 @@ func (docs DocumentsIndex) Less(i, j int) bool {
 	return docs[i].DocId < docs[j].DocId
 }
 
+// 释放资源
+func (docs DocumentsIndex) Close() {
+	for _, doc := range docs {
+		if doc != nil {
+			doc.Keywords = nil
+		}
+	}
+}
+
 // 方便批量删除文档索引
 type DocumentsId []uint64
 

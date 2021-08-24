@@ -1,11 +1,12 @@
 package core
 
 import (
-	"github.com/huichen/wukong/types"
-	"github.com/huichen/wukong/utils"
 	"log"
 	"sort"
 	"sync"
+
+	"github.com/huichen/wukong/types"
+	"github.com/huichen/wukong/utils"
 )
 
 type Ranker struct {
@@ -18,7 +19,7 @@ type Ranker struct {
 }
 
 func (ranker *Ranker) Init() {
-	if ranker.initialized == true {
+	if ranker.initialized {
 		log.Fatal("排序器不能初始化两次")
 	}
 	ranker.initialized = true
@@ -29,7 +30,7 @@ func (ranker *Ranker) Init() {
 
 // 给某个文档添加评分字段
 func (ranker *Ranker) AddDoc(docId uint64, fields interface{}) {
-	if ranker.initialized == false {
+	if !ranker.initialized {
 		log.Fatal("排序器尚未初始化")
 	}
 
@@ -41,7 +42,7 @@ func (ranker *Ranker) AddDoc(docId uint64, fields interface{}) {
 
 // 删除某个文档的评分字段
 func (ranker *Ranker) RemoveDoc(docId uint64) {
-	if ranker.initialized == false {
+	if !ranker.initialized {
 		log.Fatal("排序器尚未初始化")
 	}
 
@@ -54,7 +55,7 @@ func (ranker *Ranker) RemoveDoc(docId uint64) {
 // 给文档评分并排序
 func (ranker *Ranker) Rank(
 	docs []types.IndexedDocument, options types.RankOptions, countDocsOnly bool) (types.ScoredDocuments, int) {
-	if ranker.initialized == false {
+	if !ranker.initialized {
 		log.Fatal("排序器尚未初始化")
 	}
 
@@ -103,4 +104,10 @@ func (ranker *Ranker) Rank(
 		return outputDocs[start:end], numDocs
 	}
 	return outputDocs, numDocs
+}
+
+func (ranker *Ranker) Close() {
+	ranker.initialized = false
+	ranker.lock.fields = nil
+	ranker.lock.docs = nil
 }
