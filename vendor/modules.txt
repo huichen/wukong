@@ -1,0 +1,50 @@
+# github.com/adamzy/cedar-go v0.0.0-20170805034717-80a9c64b256d
+## explicit
+github.com/adamzy/cedar-go
+# github.com/boltdb/bolt v1.3.1
+## explicit
+github.com/boltdb/bolt
+# github.com/cznic/fileutil v0.0.0-20181122101858-4d67cfea8c87
+## explicit
+github.com/cznic/fileutil
+# github.com/cznic/internal v0.0.0-20181122101858-3279554c546e
+## explicit
+github.com/cznic/internal/buffer
+github.com/cznic/internal/file
+github.com/cznic/internal/slice
+# github.com/cznic/kv v0.0.0-20181122101858-e9cdcade440e
+## explicit
+github.com/cznic/kv
+# github.com/cznic/lldb v1.1.0
+## explicit
+github.com/cznic/lldb
+# github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548
+## explicit
+github.com/cznic/mathutil
+# github.com/cznic/sortutil v0.0.0-20181122101858-f5f958428db8
+## explicit
+github.com/cznic/sortutil
+# github.com/cznic/zappy v0.0.0-20181122101859-ca47d358d4b1
+## explicit
+github.com/cznic/zappy
+# github.com/edsrzf/mmap-go v1.0.0
+## explicit
+github.com/edsrzf/mmap-go
+# github.com/golang/snappy v0.0.4
+## explicit
+# github.com/huichen/murmur v0.0.0-20130808212358-e0489551cf51
+## explicit
+github.com/huichen/murmur
+# github.com/huichen/sego v0.0.0-20180617034105-3f3c8a8cfacc
+## explicit
+github.com/huichen/sego
+# github.com/issue9/assert v1.4.1
+## explicit
+# github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0
+## explicit
+github.com/remyoudompheng/bigfft
+# golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
+## explicit
+golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/unix
+golang.org/x/sys/windows
